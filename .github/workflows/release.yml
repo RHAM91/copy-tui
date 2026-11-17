@@ -11,6 +11,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Merges landing back to back must not race to create the same release PR.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest

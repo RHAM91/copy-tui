@@ -6,7 +6,8 @@
       "package-name": "copiar",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "include-v-in-tag": true
+      "include-v-in-tag": true,
+      "initial-version": "0.1.0"
     }
   }
 }
