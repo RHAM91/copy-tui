@@ -27,9 +27,9 @@ Branch: `feat/copiar-tui` (base `main` @ 701798f) · Delivery: `ask-on-risk` →
 |----|-------|------|-------|------|--------|--------|
 | T1 | S1,S2,S10 | Scaffold: module, `cmd/copiar`, `--no-icons`, theme, two empty panels | inline | none | done | 66d9205 |
 | T2 | S2,S3,S10,A1 | Panel navigation, listing, icons, size, path header, hidden toggle | inline | none | done | 1b944a5 |
-| T3 | S3 | Search `/`, `n`, `N` | inline | none | done | slice 1 |
-| T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | done | slice 1 |
-| T5 | S5,S6,S12,S13 | Copy engine (fsops): recursive, cp -a, progress, cancel + cleanup, conflict naming | inline | item 1 | todo | |
+| T3 | S3 | Search `/`, `n`, `N` | inline | none | done | a0f94e8 |
+| T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | done | a0f94e8 |
+| T5 | S5,S6,S12,S13 | Copy engine (fsops): recursive, cp -a, progress, cancel + cleanup, conflict naming | inline | item 1 | done | slice 1 |
 | T6 | S4,S5,S7,S12 | Copy UI: `space`, conflict dialog with apply-to-all, progress modal | inline | item 1 | todo | |
 | T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | todo | |
 | T8 | S9 | Delete `d` trash / `D` permanent with confirmations | inline | item 1 | todo | |
@@ -47,3 +47,4 @@ Route evidence: no Writer trigger reason (tasks are sequential and depend on eac
 - **L5** T1 RED: `go test ./...` build failed (undefined `New`, `Options`, `parseArgs`). GREEN: `go vet ./...` clean; `go test ./...` ok (cmd/copiar, internal/ui).
 - **L6** T2 RED: build failed (undefined `ListDir`, `Current`, `Status`). GREEN: `go test ./...` ok. Runtime: tmux 110x22 render shows icons (U+F07B), active border mauve, cursor background #313244 on active panel, #181825 on inactive.
 - **L7** T3+T4 RED: build failed (undefined `Searching`, `SearchQuery`, `Selection`, `Visual`). One test fixed (wrong expected order: entries sort as one, three, two). GREEN: `go test ./...` ok. T3 and T4 share `app.go` key routing, so they ship in one commit.
+- **L8** T5 RED: build failed (undefined `Copy`, `CopyOptions`, `UniqueName`, `chunkSize`). GREEN first run: `go test ./internal/fsops/` ok (13 tests: content/perm/mtime, recursive dirs, symlinks incl. loop and broken, progress totals, skip/overwrite/rename, next free name, dir merge, type mismatch, same-dir duplicate, copy-into-itself, cancel cleanup, cancel during overwrite keeps original, resolver error). Design: temp file + rename, so cancel never leaves partial files nor destroys the overwritten file. Verification: one independent verifier will cover T5, T7 and T8 together (all item 1, all in `internal/fsops`) to keep verification as rare as possible.
