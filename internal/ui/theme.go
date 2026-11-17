@@ -54,6 +54,7 @@ var (
 	styleStatusError = lipgloss.NewStyle().Foreground(colRed).Bold(true)
 	styleStatusMode  = lipgloss.NewStyle().Foreground(colBase).Background(colMauve).Bold(true).Padding(0, 1)
 	styleStatusMuted = lipgloss.NewStyle().Foreground(colOverlay1)
+	styleUpdate      = lipgloss.NewStyle().Foreground(colPeach).Bold(true)
 
 	styleDialog = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
