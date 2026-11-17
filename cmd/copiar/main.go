@@ -12,26 +12,38 @@ import (
 	"github.com/RHAM91/copy-tui/internal/ui"
 )
 
-func parseArgs(args []string) (ui.Options, error) {
+// version is set at build time with -ldflags "-X main.version=...".
+var version = "dev"
+
+type config struct {
+	ui          ui.Options
+	showVersion bool
+}
+
+func parseArgs(args []string) (config, error) {
 	fs := flag.NewFlagSet("copiar", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	noIcons := fs.Bool("no-icons", false, "disable Nerd Font icons")
+	showVersion := fs.Bool("version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
-		return ui.Options{}, err
+		return config{}, err
 	}
-	return ui.Options{Icons: !*noIcons}, nil
+	return config{ui: ui.Options{Icons: !*noIcons}, showVersion: *showVersion}, nil
 }
 
-const usage = `Usage: copiar [--no-icons]
+func versionString() string { return "copiar " + version }
+
+const usage = `Usage: copiar [--no-icons] [--version]
 
 Dual-pane file manager with Vim keys. Both panels open in the current directory.
 
 Flags:
   --no-icons   disable Nerd Font icons (use when your terminal font lacks them)
+  --version    print the version and exit
 `
 
 func main() {
-	opts, err := parseArgs(os.Args[1:])
+	cfg, err := parseArgs(os.Args[1:])
 	if err != nil {
 		if err != flag.ErrHelp {
 			fmt.Fprintf(os.Stderr, "copiar: %v\n\n", err)
@@ -43,13 +55,18 @@ func main() {
 		os.Exit(2)
 	}
 
+	if cfg.showVersion {
+		fmt.Println(versionString())
+		return
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "copiar: cannot read current directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.New(cwd, opts), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(cwd, cfg.ui), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "copiar: %v\n", err)
 		os.Exit(1)

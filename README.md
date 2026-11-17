@@ -4,7 +4,7 @@ A dual-pane terminal file manager with Vim keys: browse two folders side by side
 
 ## Quick path
 
-1. Install (Go 1.24+):
+1. Install — either download a binary for Linux or macOS (amd64/arm64) from the [Releases](https://github.com/RHAM91/copy-tui/releases) page and put `copiar` in your `PATH`, or build it with Go 1.24+:
 
    ```bash
    go install github.com/RHAM91/copy-tui/cmd/copiar@latest
@@ -15,6 +15,7 @@ A dual-pane terminal file manager with Vim keys: browse two folders side by side
    ```bash
    copiar            # with Nerd Font icons
    copiar --no-icons # if your terminal font has no Nerd Font glyphs
+   copiar --version  # print the installed version
    ```
 
 3. Move to the destination in one panel, <kbd>tab</kbd> to the other, select a file and press <kbd>space</kbd>.
@@ -61,3 +62,13 @@ go run ./cmd/copiar          # run from source
 | `cmd/copiar` | flags and program start |
 | `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI |
 | `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |
+
+## Releases
+
+Releases are automated from `main` with [release-please](https://github.com/googleapis/release-please) and [GoReleaser](https://goreleaser.com):
+
+1. Merge work into `main` using [Conventional Commits](https://www.conventionalcommits.org) (`feat:` bumps the minor version, `fix:` the patch; `feat!:` or `BREAKING CHANGE:` the major after 1.0).
+2. The **Release** workflow keeps a release PR open with the next version and `CHANGELOG.md`.
+3. Merging that PR creates the `vX.Y.Z` tag and GitHub release; GoReleaser then attaches `copiar_<version>_<os>_<arch>.tar.gz` archives and `checksums.txt`.
+
+Try the build locally without publishing: `goreleaser release --snapshot --clean`.
