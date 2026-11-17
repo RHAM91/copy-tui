@@ -248,11 +248,11 @@ func (m Model) statusView() string {
 		style = styleStatusError
 	}
 	notice := m.updateNoticeView()
+	if notice == "" {
+		return ansi.Truncate(prefix+style.Render(" "+m.status), m.width, "…")
+	}
 	room := max(m.width-lipgloss.Width(notice)-1, 0)
 	left := ansi.Truncate(prefix+style.Render(" "+m.status), room, "…")
-	if notice == "" {
-		return left
-	}
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(notice), 1)
 	return left + strings.Repeat(" ", gap) + notice
 }

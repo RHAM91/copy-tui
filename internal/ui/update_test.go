@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // startWithCheck runs Init and feeds its result back like Bubble Tea does.
@@ -52,5 +54,14 @@ func TestStartupShowsNothingWhenUpToDateOrOffline(t *testing.T) {
 func TestNoStartupCheckWithoutChecker(t *testing.T) {
 	if cmd := New(tree(t), Options{}).Init(); cmd != nil {
 		t.Fatal("Init returned a command without CheckUpdate")
+	}
+}
+
+func TestStatusUsesFullWidthWithoutUpdateNotice(t *testing.T) {
+	m := sized(New(tree(t, "a"), Options{}))
+	m.status = strings.Repeat("x", m.width-1) // " "+status fills the bar exactly
+	line := m.statusView()
+	if strings.Contains(line, "…") || ansi.StringWidth(line) != m.width {
+		t.Fatalf("status truncated without an update notice: width %d of %d", ansi.StringWidth(line), m.width)
 	}
 }
