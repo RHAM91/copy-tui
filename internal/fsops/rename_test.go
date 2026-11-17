@@ -74,3 +74,46 @@ func TestMkdir(t *testing.T) {
 		t.Fatal("expected invalid name error")
 	}
 }
+
+func TestValidateNameOnWindows(t *testing.T) {
+	tests := []struct {
+		in      string
+		wantErr bool
+	}{
+		{in: "report.txt"},
+		{in: "console.txt"},
+		{in: "con.txt.bak", wantErr: true}, // reserved even with several extensions
+		{in: `a\b`, wantErr: true},
+		{in: "a:b", wantErr: true},
+		{in: "what?", wantErr: true},
+		{in: "star*", wantErr: true},
+		{in: `"quoted"`, wantErr: true},
+		{in: "<tag>", wantErr: true},
+		{in: "pipe|", wantErr: true},
+		{in: "CON", wantErr: true},
+		{in: "nul.txt", wantErr: true},
+		{in: "com1", wantErr: true},
+		{in: "LPT9.log", wantErr: true},
+		{in: "trailing.", wantErr: true},
+		{in: "trailing ", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			err := validateName(tt.in, "windows")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateName(%q, windows) error = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if !errors.Is(err, ErrInvalidName) && err != nil {
+				t.Fatalf("error does not wrap ErrInvalidName: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateNameAllowsWindowsCharactersOnUnix(t *testing.T) {
+	for _, name := range []string{`a\b`, "a:b", "what?", "CON"} {
+		if err := validateName(name, "linux"); err != nil {
+			t.Fatalf("validateName(%q, linux) = %v, want nil", name, err)
+		}
+	}
+}

@@ -50,7 +50,7 @@ func TestMoveFile(t *testing.T) {
 				t.Fatalf("content = %q", got)
 			}
 			info, _ := os.Stat(out)
-			if info.Mode().Perm() != 0o640 || !info.ModTime().Equal(past) {
+			if (unixPerms() && info.Mode().Perm() != 0o640) || !info.ModTime().Equal(past) {
 				t.Fatalf("mode/mtime not preserved: %v %v", info.Mode(), info.ModTime())
 			}
 			if res.Copied != 1 {

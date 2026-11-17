@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -124,7 +125,7 @@ func TestRunUpdate(t *testing.T) {
 		{name: "explains development builds", up: &fakeUpdater{err: update.ErrDevBuild}, current: "dev",
 			wantCode: 1, wantOut: "development build"},
 		{name: "suggests sudo when the binary is not writable", up: &fakeUpdater{err: fmt.Errorf("installing: %w", fs.ErrPermission)}, current: "0.1.0",
-			wantCode: 1, wantOut: "sudo copiar update"},
+			wantCode: 1, wantOut: permissionHint(runtime.GOOS)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,5 +158,17 @@ func TestStartupCheckSkippedForDevBuilds(t *testing.T) {
 	upToDate := startupCheck(&fakeUpdater{latest: "0.1.0"}, "0.1.0")
 	if got, _ := upToDate(context.Background()); got != "" {
 		t.Fatalf("up-to-date check returned %q, want empty", got)
+	}
+}
+
+func TestPermissionHintPerOS(t *testing.T) {
+	if got := permissionHint("linux"); !strings.Contains(got, "sudo copiar update") {
+		t.Fatalf("linux hint = %q", got)
+	}
+	if got := permissionHint("darwin"); !strings.Contains(got, "sudo copiar update") {
+		t.Fatalf("darwin hint = %q", got)
+	}
+	if got := permissionHint("windows"); !strings.Contains(got, "Administrator") || strings.Contains(got, "sudo") {
+		t.Fatalf("windows hint = %q", got)
 	}
 }

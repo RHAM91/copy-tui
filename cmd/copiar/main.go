@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
+	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creativeprojects/go-selfupdate"
@@ -69,7 +70,7 @@ func runUpdate(ctx context.Context, up updater, current, exePath string, out io.
 		return 1
 	case errors.Is(err, fs.ErrPermission):
 		fmt.Fprintf(out, "copiar update: cannot replace %s: %v\n", exePath, err)
-		fmt.Fprintln(out, "Try again with: sudo copiar update")
+		fmt.Fprintln(out, permissionHint(runtime.GOOS))
 		return 1
 	case err != nil:
 		fmt.Fprintf(out, "copiar update: %v\n", err)
@@ -95,6 +96,14 @@ func startupCheck(up updater, current string) func(context.Context) (string, err
 		}
 		return latest, nil
 	}
+}
+
+// permissionHint tells how to retry when the executable is not writable.
+func permissionHint(goos string) string {
+	if goos == "windows" {
+		return "Open the terminal as Administrator and run: copiar update"
+	}
+	return "Try again with: sudo copiar update"
 }
 
 func trimV(v string) string {
