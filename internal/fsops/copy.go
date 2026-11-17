@@ -150,7 +150,66 @@ func (c *copier) target(src, dstDir string, srcInfo fs.FileInfo, duplicate bool)
 	case ActionRename:
 		return UniqueName(dst), false, nil
 	}
+	// Overwriting a folder that contains the source would delete or merge
+	// the source into itself.
+	if dstInfo.IsDir() {
+		inside, err := isWithin(src, dst)
+		if err != nil {
+			return "", false, err
+		}
+		if inside {
+			return "", false, fmt.Errorf("%w: %s contains %s", ErrIntoItself, dst, src)
+		}
+	}
 	return dst, false, nil
+}
+
+// isWithin reports whether path is dir or lies inside it, after resolving
+// symlinks of both.
+func isWithin(path, dir string) (bool, error) {
+	p, err := realPath(path)
+	if err != nil {
+		return false, err
+	}
+	d, err := realPath(dir)
+	if err != nil {
+		return false, err
+	}
+	return p == d || strings.HasPrefix(p, d+string(filepath.Separator)), nil
+}
+
+// parkAside renames an existing entry at path to a hidden free name next to
+// it, so path can be recreated with another type without losing the
+// original until the new entry is complete. It returns "" when nothing
+// exists at path.
+func parkAside(path string) (string, error) {
+	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	aside := UniqueName(filepath.Join(filepath.Dir(path), "."+shortName(filepath.Base(path))+".copiar-old"))
+	return aside, os.Rename(path, aside)
+}
+
+// restoreAside puts a parked entry back after a failure.
+func restoreAside(path, aside string) {
+	if aside == "" {
+		return
+	}
+	_ = os.RemoveAll(path)
+	_ = os.Rename(aside, path)
+}
+
+// maxHelperBase keeps helper names (".<name>.copiar-…") under the 255-byte
+// file name limit.
+const maxHelperBase = 200
+
+func shortName(name string) string {
+	if len(name) <= maxHelperBase {
+		return name
+	}
+	return name[:maxHelperBase]
 }
 
 // checkNotIntoItself fails when src is a directory and dstDir is src or lies
@@ -160,15 +219,11 @@ func checkNotIntoItself(src, dstDir string) error {
 	if err != nil || !info.IsDir() {
 		return err
 	}
-	s, err := realPath(src)
+	inside, err := isWithin(dstDir, src)
 	if err != nil {
 		return err
 	}
-	d, err := realPath(dstDir)
-	if err != nil {
-		return err
-	}
-	if d == s || strings.HasPrefix(d, s+string(filepath.Separator)) {
+	if inside {
 		return fmt.Errorf("%w: %s", ErrIntoItself, src)
 	}
 	return nil
@@ -245,11 +300,21 @@ func (c *copier) copyEntry(src, dst string, info fs.FileInfo) error {
 	}
 }
 
-func (c *copier) copyDir(src, dst string, info fs.FileInfo) error {
-	if existing, err := os.Lstat(dst); err == nil && !existing.IsDir() {
-		if err := os.Remove(dst); err != nil {
+func (c *copier) copyDir(src, dst string, info fs.FileInfo) (err error) {
+	// A non-directory in the way is parked aside and only dropped once the
+	// folder is complete, so a cancel or failure restores it.
+	aside := ""
+	if existing, statErr := os.Lstat(dst); statErr == nil && !existing.IsDir() {
+		if aside, err = parkAside(dst); err != nil {
 			return err
 		}
+		defer func() {
+			if err != nil {
+				restoreAside(dst, aside)
+			} else {
+				err = os.RemoveAll(aside)
+			}
+		}()
 	}
 	// Create writable first; the real mode is applied once the content is in.
 	if err := os.Mkdir(dst, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
@@ -279,11 +344,18 @@ func (c *copier) copySymlink(src, dst string, info fs.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	if err := removeExisting(dst); err != nil {
+	aside, err := parkAside(dst)
+	if err != nil {
 		return err
 	}
 	if err := os.Symlink(target, dst); err != nil {
+		restoreAside(dst, aside)
 		return err
+	}
+	if aside != "" {
+		if err := os.RemoveAll(aside); err != nil {
+			return err
+		}
 	}
 	ts := []unix.Timespec{
 		unix.NsecToTimespec(accessTime(info).UnixNano()),
@@ -303,7 +375,7 @@ func (c *copier) copyFile(src, dst string, info fs.FileInfo) (err error) {
 	}
 	defer in.Close()
 
-	tmp, err := os.CreateTemp(filepath.Dir(dst), "."+filepath.Base(dst)+".copiar-*")
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "."+shortName(filepath.Base(dst))+".copiar-*")
 	if err != nil {
 		return err
 	}
@@ -347,28 +419,26 @@ func (c *copier) copyFile(src, dst string, info fs.FileInfo) (err error) {
 	if err := os.Chtimes(tmpName, accessTime(info), info.ModTime()); err != nil {
 		return err
 	}
+	aside := ""
 	if existing, statErr := os.Lstat(dst); statErr == nil && existing.IsDir() {
-		if err := os.RemoveAll(dst); err != nil {
+		// rename cannot replace a folder with a file: park it until the
+		// file is in place.
+		if aside, err = parkAside(dst); err != nil {
 			return err
 		}
 	}
 	if err := os.Rename(tmpName, dst); err != nil {
+		restoreAside(dst, aside)
 		return err
+	}
+	if aside != "" {
+		if err := os.RemoveAll(aside); err != nil {
+			return err
+		}
 	}
 	c.prog.FilesDone++
 	c.report(src)
 	return nil
-}
-
-// removeExisting deletes dst when it exists, whatever its type.
-func removeExisting(dst string) error {
-	if _, err := os.Lstat(dst); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	return os.RemoveAll(dst)
 }
 
 func preservedMode(info fs.FileInfo) fs.FileMode {
