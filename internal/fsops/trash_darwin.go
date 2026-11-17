@@ -64,9 +64,7 @@ func Trash(ctx context.Context, paths []string, onProgress func(Progress)) (int,
 			return done, err
 		}
 		if err := finderTrash(ctx, abs); err == nil {
-			c.prog.BytesDone += shares[i].BytesTotal
-			c.prog.FilesDone += shares[i].FilesTotal
-			c.report(abs)
+			c.markDone(shares[i], abs)
 		} else {
 			trash := TrashDir()
 			if err := os.MkdirAll(trash, 0o700); err != nil {

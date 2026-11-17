@@ -92,9 +92,7 @@ func (c *copier) moveEntry(src, dst string, info fs.FileInfo, share Progress) er
 	err := rename(src, dst)
 	switch {
 	case err == nil:
-		c.prog.BytesDone += share.BytesTotal
-		c.prog.FilesDone += share.FilesTotal
-		c.report(src)
+		c.markDone(share, src)
 		return dropAside()
 	case isCrossDevice(err):
 		if err := c.copyEntry(src, dst, info); err != nil {
