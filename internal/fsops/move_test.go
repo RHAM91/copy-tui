@@ -82,7 +82,7 @@ func TestMoveDirectory(t *testing.T) {
 			if got := readFile(t, filepath.Join(dst, "d", "sub", "f.txt")); got != "F" {
 				t.Fatalf("f.txt = %q", got)
 			}
-			if target, err := os.Readlink(filepath.Join(dst, "d", "link")); err != nil || target != "sub/f.txt" {
+			if target, err := os.Readlink(filepath.Join(dst, "d", "link")); err != nil || target != filepath.FromSlash("sub/f.txt") {
 				t.Fatalf("link = %q, %v", target, err)
 			}
 		})

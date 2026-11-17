@@ -141,7 +141,7 @@ func TestCopyKeepsSymlinksAsLinks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s is not a symlink: %v", name, err)
 		}
-		if got != want {
+		if got != filepath.FromSlash(want) { // Windows stores link targets with backslashes
 			t.Fatalf("%s -> %q, want %q", name, got, want)
 		}
 	}
