@@ -35,6 +35,19 @@ func (m *Model) copySelection() tea.Cmd {
 	})
 }
 
+// moveSelection moves the selection of the active panel into the other one.
+func (m *Model) moveSelection() tea.Cmd {
+	paths := m.selectedPaths()
+	if len(paths) == 0 {
+		return nil
+	}
+	dstDir := m.otherDir()
+	return m.startOp("Moving", func(ctx context.Context, resolve fsops.ConflictResolver, progress func(fsops.Progress)) (string, error) {
+		res, err := fsops.Move(ctx, paths, dstDir, fsops.CopyOptions{Resolve: resolve, OnProgress: progress})
+		return resultSummary("Moved", res.Copied, res.Skipped, dstDir), err
+	})
+}
+
 func resultSummary(verb string, done, skipped int, dstDir string) string {
 	s := fmt.Sprintf("%s %s to %s", verb, plural(done, "item", "items"), dstDir)
 	if skipped > 0 {

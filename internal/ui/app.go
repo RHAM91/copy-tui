@@ -140,6 +140,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setInfo("")
 	case " ":
 		return m, m.copySelection()
+	case "x":
+		return m, m.moveSelection()
 	}
 	return m, nil
 }

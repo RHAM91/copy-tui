@@ -18,9 +18,9 @@ import (
 // cancellation checks.
 const chunkSize = 256 * 1024
 
-// ErrCopyIntoItself is returned when a directory would be copied inside its
+// ErrIntoItself is returned when a directory would be copied inside its
 // own tree.
-var ErrCopyIntoItself = errors.New("cannot copy a directory into itself")
+var ErrIntoItself = errors.New("cannot copy or move a directory into itself")
 
 // ConflictAction tells Copy what to do when the destination already exists.
 type ConflictAction int
@@ -101,42 +101,56 @@ func Copy(ctx context.Context, sources []string, dstDir string, opts CopyOptions
 		if err != nil {
 			return res, err
 		}
-		dst := filepath.Join(dstDir, filepath.Base(src))
-
-		if dstInfo, err := os.Lstat(dst); err == nil {
-			if os.SameFile(srcInfo, dstInfo) {
-				dst = UniqueName(dst)
-			} else {
-				action := ActionSkip
-				if opts.Resolve != nil {
-					if action, err = opts.Resolve(src, dst); err != nil {
-						return res, err
-					}
-				}
-				switch action {
-				case ActionSkip:
-					if err := c.skip(src); err != nil {
-						return res, err
-					}
-					res.Skipped++
-					continue
-				case ActionRename:
-					dst = UniqueName(dst)
-				case ActionOverwrite:
-					// Handled by copyEntry: files are replaced atomically,
-					// directories merged, other types removed first.
-				}
-			}
-		} else if !errors.Is(err, fs.ErrNotExist) {
+		dst, skip, err := c.target(src, dstDir, srcInfo, true)
+		if err != nil {
 			return res, err
 		}
-
+		if skip {
+			res.Skipped++
+			continue
+		}
+		// On overwrite, copyEntry replaces files atomically, merges
+		// directories and removes entries of another type first.
 		if err := c.copyEntry(src, dst, srcInfo); err != nil {
 			return res, err
 		}
 		res.Copied++
 	}
 	return res, nil
+}
+
+// target decides where src goes inside dstDir, asking the resolver when the
+// name is taken. When the destination is src itself, it duplicates under a
+// free name if duplicate is true, or skips otherwise. Skipped sources are
+// counted as done in the progress.
+func (c *copier) target(src, dstDir string, srcInfo fs.FileInfo, duplicate bool) (dst string, skip bool, err error) {
+	dst = filepath.Join(dstDir, filepath.Base(src))
+	dstInfo, err := os.Lstat(dst)
+	if errors.Is(err, fs.ErrNotExist) {
+		return dst, false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if os.SameFile(srcInfo, dstInfo) {
+		if duplicate {
+			return UniqueName(dst), false, nil
+		}
+		return "", true, c.skip(src)
+	}
+	action := ActionSkip
+	if c.opts.Resolve != nil {
+		if action, err = c.opts.Resolve(src, dst); err != nil {
+			return "", false, err
+		}
+	}
+	switch action {
+	case ActionSkip:
+		return "", true, c.skip(src)
+	case ActionRename:
+		return UniqueName(dst), false, nil
+	}
+	return dst, false, nil
 }
 
 // checkNotIntoItself fails when src is a directory and dstDir is src or lies
@@ -155,7 +169,7 @@ func checkNotIntoItself(src, dstDir string) error {
 		return err
 	}
 	if d == s || strings.HasPrefix(d, s+string(filepath.Separator)) {
-		return fmt.Errorf("%w: %s", ErrCopyIntoItself, src)
+		return fmt.Errorf("%w: %s", ErrIntoItself, src)
 	}
 	return nil
 }
