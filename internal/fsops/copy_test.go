@@ -299,8 +299,8 @@ func TestCopyDirectoryIntoItselfFails(t *testing.T) {
 	mustWrite(t, filepath.Join(root, "sub", "f"), "x", 0o644)
 
 	_, err := Copy(context.Background(), []string{root}, filepath.Join(root, "sub"), CopyOptions{Resolve: failResolver(t)})
-	if !errors.Is(err, ErrCopyIntoItself) {
-		t.Fatalf("err = %v, want ErrCopyIntoItself", err)
+	if !errors.Is(err, ErrIntoItself) {
+		t.Fatalf("err = %v, want ErrIntoItself", err)
 	}
 	if exists(filepath.Join(root, "sub", "d")) {
 		t.Fatal("something was copied into the source tree")

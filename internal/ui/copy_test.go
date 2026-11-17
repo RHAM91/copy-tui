@@ -268,3 +268,43 @@ func TestKeysAreIgnoredWhileBusy(t *testing.T) {
 		t.Fatal("operation did not finish")
 	}
 }
+
+func TestXMovesSelectionToOtherPanel(t *testing.T) {
+	m, root := twoPanels(t, "a.txt", "b.txt")
+
+	m = act(t, m, "j", "m", "m", "x")
+	if m.Busy() {
+		t.Fatal("operation still running")
+	}
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if got := contentOf(t, filepath.Join(root, "dst", name)); got != "x" {
+			t.Fatalf("%s = %q", name, got)
+		}
+		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+			t.Fatalf("%s still in source", name)
+		}
+	}
+	if n := len(m.Panel(0).Entries()); n != 1 {
+		t.Fatalf("left panel not refreshed: %d entries", n)
+	}
+	if !strings.Contains(m.Status(), "Moved 2 items") {
+		t.Fatalf("status = %q", m.Status())
+	}
+}
+
+func TestXAsksOnConflict(t *testing.T) {
+	m, root := twoPanels(t, "a.txt")
+	writeTo(t, filepath.Join(root, "dst", "a.txt"), "old")
+
+	m = act(t, m, "j", "x")
+	if !m.ConflictPending() {
+		t.Fatal("expected conflict dialog")
+	}
+	m = act(t, m, "s")
+	if got := contentOf(t, filepath.Join(root, "dst", "a.txt")); got != "old" {
+		t.Fatalf("dst overwritten: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "a.txt")); err != nil {
+		t.Fatal("skipped source was removed")
+	}
+}
