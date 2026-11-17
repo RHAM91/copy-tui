@@ -2,6 +2,9 @@
 package ui
 
 import (
+	"context"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -11,6 +14,9 @@ import (
 type Options struct {
 	// Icons enables Nerd Font icons next to entry names.
 	Icons bool
+	// CheckUpdate, when set, runs in the background at startup and returns
+	// a newer version ("" when up to date) to show in the status bar.
+	CheckUpdate func(context.Context) (string, error)
 }
 
 // Model is the root Bubble Tea model: two panels and the active one.
@@ -34,6 +40,8 @@ type Model struct {
 	input *inputPrompt
 	// helpOpen is true while the full "?" help is shown.
 	helpOpen bool
+	// updateVersion is a newer release found at startup, "" when none.
+	updateVersion string
 
 	status    string
 	statusErr bool
@@ -65,7 +73,12 @@ func (m *Model) setError(err error) { m.status, m.statusErr = err.Error(), true 
 func (m *Model) activePanel() *Panel { return &m.panels[m.active] }
 
 // Init implements tea.Model.
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.opts.CheckUpdate == nil {
+		return nil
+	}
+	return checkUpdateCmd(m.opts.CheckUpdate)
+}
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -92,6 +105,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	case opProgressMsg, opConflictMsg, opDoneMsg:
 		return m.handleOpMsg(msg)
+	case updateAvailableMsg:
+		m.updateVersion = msg.version
+		return m, nil
 	}
 	return m, nil
 }
@@ -231,5 +247,12 @@ func (m Model) statusView() string {
 	if m.statusErr {
 		style = styleStatusError
 	}
-	return ansi.Truncate(prefix+style.Render(" "+m.status), m.width, "…")
+	notice := m.updateNoticeView()
+	room := max(m.width-lipgloss.Width(notice)-1, 0)
+	left := ansi.Truncate(prefix+style.Render(" "+m.status), room, "…")
+	if notice == "" {
+		return left
+	}
+	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(notice), 1)
+	return left + strings.Repeat(" ", gap) + notice
 }

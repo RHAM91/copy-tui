@@ -16,6 +16,7 @@ A dual-pane terminal file manager with Vim keys: browse two folders side by side
    copiar            # with Nerd Font icons
    copiar --no-icons # if your terminal font has no Nerd Font glyphs
    copiar --version  # print the installed version
+   copiar update     # install the latest release
    ```
 
 3. Move to the destination in one panel, <kbd>tab</kbd> to the other, select a file and press <kbd>space</kbd>.
@@ -46,6 +47,7 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
 | Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
 | Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
+| Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` if it lives in a system folder. Builds from source (`dev`) do not update. |
 | Trash | `d` uses the freedesktop.org home trash (`$XDG_DATA_HOME/Trash`, usually `~/.local/share/Trash`), so file managers can restore items. |
 
 > **WSL note:** the trash is the Linux one. Items trashed from `/mnt/c/...` do not appear in the Windows Recycle Bin.
