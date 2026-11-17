@@ -83,10 +83,8 @@ func Copy(ctx context.Context, sources []string, dstDir string, opts CopyOptions
 			return res, err
 		}
 	}
-	for _, src := range sources {
-		if err := c.measure(src); err != nil {
-			return res, err
-		}
+	if _, err := c.measureEach(sources); err != nil {
+		return res, err
 	}
 	c.report("")
 
@@ -198,6 +196,28 @@ func restoreAside(path, aside string) {
 	_ = os.Rename(aside, path)
 }
 
+// replace runs install, which must leave the new entry at dst. When park is
+// true the entry already at dst is parked aside first: it is restored if
+// install fails and dropped once install has succeeded. With park false the
+// existing entry is left for install to overwrite or merge into.
+func replace(dst string, park bool, install func() error) error {
+	aside := ""
+	if park {
+		var err error
+		if aside, err = parkAside(dst); err != nil {
+			return err
+		}
+	}
+	if err := install(); err != nil {
+		restoreAside(dst, aside)
+		return err
+	}
+	if aside == "" {
+		return nil
+	}
+	return os.RemoveAll(aside)
+}
+
 // maxHelperBase keeps helper names (".<name>.copiar-…") under the 255-byte
 // file name limit.
 const maxHelperBase = 200
@@ -234,9 +254,11 @@ func realPath(p string) (string, error) {
 	return filepath.EvalSymlinks(abs)
 }
 
-// measure adds the size and file count of src to the progress totals.
-func (c *copier) measure(src string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+// measure returns the size and file count under root as the totals of a
+// Progress. It leaves the progress of the copier untouched.
+func (c *copier) measure(root string) (Progress, error) {
+	var total Progress
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -246,16 +268,17 @@ func (c *copier) measure(src string) error {
 		if d.IsDir() {
 			return nil
 		}
-		c.prog.FilesTotal++
+		total.FilesTotal++
 		if d.Type().IsRegular() {
 			info, err := d.Info()
 			if err != nil {
 				return err
 			}
-			c.prog.BytesTotal += info.Size()
+			total.BytesTotal += info.Size()
 		}
 		return nil
 	})
+	return total, err
 }
 
 // measureEach adds every path to the progress totals and returns the share
@@ -263,31 +286,32 @@ func (c *copier) measure(src string) error {
 func (c *copier) measureEach(paths []string) ([]Progress, error) {
 	shares := make([]Progress, len(paths))
 	for i, p := range paths {
-		before := c.prog
-		if err := c.measure(p); err != nil {
+		share, err := c.measure(p)
+		if err != nil {
 			return nil, err
 		}
-		shares[i] = Progress{
-			BytesTotal: c.prog.BytesTotal - before.BytesTotal,
-			FilesTotal: c.prog.FilesTotal - before.FilesTotal,
-		}
+		shares[i] = share
+		c.prog.BytesTotal += share.BytesTotal
+		c.prog.FilesTotal += share.FilesTotal
 	}
 	return shares, nil
 }
 
+// markDone counts share as processed and reports current as the entry just
+// handled.
+func (c *copier) markDone(share Progress, current string) {
+	c.prog.BytesDone += share.BytesTotal
+	c.prog.FilesDone += share.FilesTotal
+	c.report(current)
+}
+
 // skip counts src as done so the progress bar still reaches 100%.
 func (c *copier) skip(src string) error {
-	before := c.prog
-	c.prog = Progress{}
-	err := c.measure(src)
-	skipped := c.prog
-	c.prog = before
+	share, err := c.measure(src)
 	if err != nil {
 		return err
 	}
-	c.prog.BytesDone += skipped.BytesTotal
-	c.prog.FilesDone += skipped.FilesTotal
-	c.report(src)
+	c.markDone(share, src)
 	return nil
 }
 
@@ -314,22 +338,16 @@ func (c *copier) copyEntry(src, dst string, info fs.FileInfo) error {
 	}
 }
 
-func (c *copier) copyDir(src, dst string, info fs.FileInfo) (err error) {
+func (c *copier) copyDir(src, dst string, info fs.FileInfo) error {
 	// A non-directory in the way is parked aside and only dropped once the
 	// folder is complete, so a cancel or failure restores it.
-	aside := ""
-	if existing, statErr := os.Lstat(dst); statErr == nil && !existing.IsDir() {
-		if aside, err = parkAside(dst); err != nil {
-			return err
-		}
-		defer func() {
-			if err != nil {
-				restoreAside(dst, aside)
-			} else {
-				err = os.RemoveAll(aside)
-			}
-		}()
-	}
+	existing, statErr := os.Lstat(dst)
+	park := statErr == nil && !existing.IsDir()
+	return replace(dst, park, func() error { return c.fillDir(src, dst, info) })
+}
+
+// fillDir creates dst if needed and copies the content of src into it.
+func (c *copier) fillDir(src, dst string, info fs.FileInfo) error {
 	// Create writable first; the real mode is applied once the content is in.
 	if err := os.Mkdir(dst, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
@@ -358,18 +376,8 @@ func (c *copier) copySymlink(src, dst string, info fs.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	aside, err := parkAside(dst)
-	if err != nil {
+	if err := replace(dst, true, func() error { return os.Symlink(target, dst) }); err != nil {
 		return err
-	}
-	if err := os.Symlink(target, dst); err != nil {
-		restoreAside(dst, aside)
-		return err
-	}
-	if aside != "" {
-		if err := os.RemoveAll(aside); err != nil {
-			return err
-		}
 	}
 	// Best effort: some file systems cannot set times on links.
 	setLinkTimes(dst, accessTime(info), info.ModTime())
@@ -429,22 +437,12 @@ func (c *copier) copyFile(src, dst string, info fs.FileInfo) (err error) {
 	if err := os.Chtimes(tmpName, accessTime(info), info.ModTime()); err != nil {
 		return err
 	}
-	aside := ""
-	if existing, statErr := os.Lstat(dst); statErr == nil && existing.IsDir() {
-		// rename cannot replace a folder with a file: park it until the
-		// file is in place.
-		if aside, err = parkAside(dst); err != nil {
-			return err
-		}
-	}
-	if err := os.Rename(tmpName, dst); err != nil {
-		restoreAside(dst, aside)
+	// rename cannot replace a folder with a file: park it until the file is
+	// in place.
+	existing, statErr := os.Lstat(dst)
+	park := statErr == nil && existing.IsDir()
+	if err := replace(dst, park, func() error { return os.Rename(tmpName, dst) }); err != nil {
 		return err
-	}
-	if aside != "" {
-		if err := os.RemoveAll(aside); err != nil {
-			return err
-		}
 	}
 	c.prog.FilesDone++
 	c.report(src)
