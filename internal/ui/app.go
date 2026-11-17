@@ -30,6 +30,8 @@ type Model struct {
 	op *operation
 	// confirm is the open confirmation dialog, nil when none.
 	confirm *confirmPrompt
+	// input is the open text prompt (rename, new folder), nil when none.
+	input *inputPrompt
 
 	status    string
 	statusErr bool
@@ -78,6 +80,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.confirm != nil {
 			return m.handleConfirmKey(msg)
+		}
+		if m.input != nil {
+			return m.handleInputKey(msg)
 		}
 		return m.handleKey(msg)
 	case opProgressMsg, opConflictMsg, opDoneMsg:
@@ -151,6 +156,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.askTrash()
 	case "D":
 		m.askDelete()
+	case "r":
+		m.askRename()
+	case "a":
+		m.askMkdir()
 	}
 	return m, nil
 }
@@ -194,6 +203,8 @@ func (m Model) View() string {
 		view = overlay(view, m.op.progressView(), m.width, m.height)
 	case m.confirm != nil:
 		view = overlay(view, m.confirm.view(), m.width, m.height)
+	case m.input != nil:
+		view = overlay(view, m.input.view(), m.width, m.height)
 	}
 	return view
 }
