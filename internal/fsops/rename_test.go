@@ -117,3 +117,34 @@ func TestValidateNameAllowsWindowsCharactersOnUnix(t *testing.T) {
 		}
 	}
 }
+
+func TestRenameChangingOnlyCase(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "File.txt"), "data", 0o644)
+
+	if err := Rename(filepath.Join(dir, "File.txt"), "file.txt"); err != nil {
+		t.Fatalf("case-only rename refused: %v", err)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 || entries[0].Name() != "file.txt" {
+		t.Fatalf("entries = %v, want only file.txt", entries)
+	}
+	if got := readFile(t, filepath.Join(dir, "file.txt")); got != "data" {
+		t.Fatalf("content = %q", got)
+	}
+}
+
+func TestRenameOntoDifferentFileWithOtherCaseIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "File.txt"), "one", 0o644)
+	mustWrite(t, filepath.Join(dir, "file.txt"), "two", 0o644)
+	if entries, _ := os.ReadDir(dir); len(entries) != 2 {
+		t.Skip("case-insensitive file system")
+	}
+	if err := Rename(filepath.Join(dir, "File.txt"), "file.txt"); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("err = %v, want os.ErrExist", err)
+	}
+	if got := readFile(t, filepath.Join(dir, "file.txt")); got != "two" {
+		t.Fatalf("file.txt overwritten: %q", got)
+	}
+}
