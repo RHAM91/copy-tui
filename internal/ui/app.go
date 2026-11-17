@@ -24,6 +24,7 @@ type Model struct {
 
 	// pendingG is set after a first "g" while waiting for "gg".
 	pendingG bool
+	search   search
 
 	status    string
 	statusErr bool
@@ -73,6 +74,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.search.active {
+		return m.handleSearchKey(msg)
+	}
 	k := msg.String()
 
 	if m.pendingG {
@@ -113,6 +117,19 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ".":
 		m.toggleHidden()
+	case "/":
+		m.startSearch()
+	case "n":
+		m.repeatSearch(1)
+	case "N":
+		m.repeatSearch(-1)
+	case "m":
+		p.toggleMark()
+	case "v":
+		p.toggleVisual()
+	case "esc":
+		p.clearSelection()
+		m.setInfo("")
 	}
 	return m, nil
 }
@@ -152,9 +169,17 @@ func (m Model) View() string {
 }
 
 func (m Model) statusView() string {
+	if m.search.active {
+		return styleStatusMode.Render("SEARCH") + " " +
+			styleDialogText.Render("/"+m.search.query) + styleHelpKey.Render("▏")
+	}
+	prefix := ""
+	if m.panels[m.active].visual {
+		prefix = styleStatusMode.Render("VISUAL") + " "
+	}
 	style := styleStatusInfo
 	if m.statusErr {
 		style = styleStatusError
 	}
-	return style.Render(ansi.Truncate(" "+m.status, m.width, "…"))
+	return ansi.Truncate(prefix+style.Render(" "+m.status), m.width, "…")
 }

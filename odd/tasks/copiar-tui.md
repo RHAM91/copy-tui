@@ -26,9 +26,9 @@ Branch: `feat/copiar-tui` (base `main` @ 701798f) · Delivery: `ask-on-risk` →
 | ID | Specs | Task | Route | Risk | Status | Commit |
 |----|-------|------|-------|------|--------|--------|
 | T1 | S1,S2,S10 | Scaffold: module, `cmd/copiar`, `--no-icons`, theme, two empty panels | inline | none | done | 66d9205 |
-| T2 | S2,S3,S10,A1 | Panel navigation, listing, icons, size, path header, hidden toggle | inline | none | done | slice 1 |
-| T3 | S3 | Search `/`, `n`, `N` | inline | none | todo | |
-| T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | todo | |
+| T2 | S2,S3,S10,A1 | Panel navigation, listing, icons, size, path header, hidden toggle | inline | none | done | 1b944a5 |
+| T3 | S3 | Search `/`, `n`, `N` | inline | none | done | slice 1 |
+| T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | done | slice 1 |
 | T5 | S5,S6,S12,S13 | Copy engine (fsops): recursive, cp -a, progress, cancel + cleanup, conflict naming | inline | item 1 | todo | |
 | T6 | S4,S5,S7,S12 | Copy UI: `space`, conflict dialog with apply-to-all, progress modal | inline | item 1 | todo | |
 | T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | todo | |
@@ -46,3 +46,4 @@ Route evidence: no Writer trigger reason (tasks are sequential and depend on eac
 - **L4** (2026-11-17) Chain strategy: "vamos con el 1" → `feature-branch-chain` (slice PRs target `feat/copiar-tui`; one final merge to `main`). Empty root commit 701798f on `main`.
 - **L5** T1 RED: `go test ./...` build failed (undefined `New`, `Options`, `parseArgs`). GREEN: `go vet ./...` clean; `go test ./...` ok (cmd/copiar, internal/ui).
 - **L6** T2 RED: build failed (undefined `ListDir`, `Current`, `Status`). GREEN: `go test ./...` ok. Runtime: tmux 110x22 render shows icons (U+F07B), active border mauve, cursor background #313244 on active panel, #181825 on inactive.
+- **L7** T3+T4 RED: build failed (undefined `Searching`, `SearchQuery`, `Selection`, `Visual`). One test fixed (wrong expected order: entries sort as one, three, two). GREEN: `go test ./...` ok. T3 and T4 share `app.go` key routing, so they ship in one commit.
