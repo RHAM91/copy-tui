@@ -26,6 +26,9 @@ type Model struct {
 	pendingG bool
 	search   search
 
+	// op is the running file operation, nil when idle.
+	op *operation
+
 	status    string
 	statusErr bool
 }
@@ -68,7 +71,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyMsg:
+		if m.op != nil {
+			return m.handleBusyKey(msg)
+		}
 		return m.handleKey(msg)
+	case opProgressMsg, opConflictMsg, opDoneMsg:
+		return m.handleOpMsg(msg)
 	}
 	return m, nil
 }
@@ -130,6 +138,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		p.clearSelection()
 		m.setInfo("")
+	case " ":
+		return m, m.copySelection()
 	}
 	return m, nil
 }
@@ -165,7 +175,15 @@ func (m Model) View() string {
 		m.panels[0].view(leftW, m.active == 0, m.opts),
 		m.panels[1].view(rightW, m.active == 1, m.opts),
 	)
-	return lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), "")
+	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), "")
+	if m.op != nil {
+		dialog := m.op.progressView()
+		if m.op.conflict != nil {
+			dialog = m.op.conflict.view()
+		}
+		view = overlay(view, dialog, m.width, m.height)
+	}
+	return view
 }
 
 func (m Model) statusView() string {
