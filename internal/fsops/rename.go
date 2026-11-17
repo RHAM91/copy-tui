@@ -60,8 +60,13 @@ func Rename(path, newName string) error {
 		return nil
 	}
 	dst := filepath.Join(filepath.Dir(path), newName)
-	if _, err := os.Lstat(dst); err == nil {
-		return fmt.Errorf("%q already exists: %w", newName, fs.ErrExist)
+	if dstInfo, err := os.Lstat(dst); err == nil {
+		// On case-insensitive file systems (macOS, Windows) a case-only
+		// rename finds the source itself; that is not a conflict.
+		srcInfo, srcErr := os.Lstat(path)
+		if srcErr != nil || !os.SameFile(srcInfo, dstInfo) {
+			return fmt.Errorf("%q already exists: %w", newName, fs.ErrExist)
+		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}

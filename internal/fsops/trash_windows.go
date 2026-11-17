@@ -32,6 +32,13 @@ type shFileOpStruct struct {
 	lpszProgressTitle     *uint16
 }
 
+// The mirror is only valid with 64-bit packing (56 bytes); 32-bit Windows
+// packs SHFILEOPSTRUCTW to 1 byte. These fail to compile if the size differs.
+var (
+	_ [56 - unsafe.Sizeof(shFileOpStruct{})]byte
+	_ [unsafe.Sizeof(shFileOpStruct{}) - 56]byte
+)
+
 var procSHFileOperationW = windows.NewLazySystemDLL("shell32.dll").NewProc("SHFileOperationW")
 
 // recycle sends one path to the Recycle Bin. FOF_WANTNUKEWARNING makes
