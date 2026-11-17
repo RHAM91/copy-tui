@@ -32,6 +32,8 @@ type Model struct {
 	confirm *confirmPrompt
 	// input is the open text prompt (rename, new folder), nil when none.
 	input *inputPrompt
+	// helpOpen is true while the full "?" help is shown.
+	helpOpen bool
 
 	status    string
 	statusErr bool
@@ -83,6 +85,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.input != nil {
 			return m.handleInputKey(msg)
+		}
+		if m.helpOpen {
+			return m.handleHelpKey(msg.String()), nil
 		}
 		return m.handleKey(msg)
 	case opProgressMsg, opConflictMsg, opDoneMsg:
@@ -156,6 +161,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.askTrash()
 	case "D":
 		m.askDelete()
+	case "?":
+		m.helpOpen = true
 	case "r":
 		m.askRename()
 	case "a":
@@ -195,7 +202,7 @@ func (m Model) View() string {
 		m.panels[0].view(leftW, m.active == 0, m.opts),
 		m.panels[1].view(rightW, m.active == 1, m.opts),
 	)
-	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), "")
+	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), m.helpBarView())
 	switch {
 	case m.op != nil && m.op.conflict != nil:
 		view = overlay(view, m.op.conflict.view(), m.width, m.height)
@@ -205,6 +212,8 @@ func (m Model) View() string {
 		view = overlay(view, m.confirm.view(), m.width, m.height)
 	case m.input != nil:
 		view = overlay(view, m.input.view(), m.width, m.height)
+	case m.helpOpen:
+		view = overlay(view, fullHelpView(), m.width, m.height)
 	}
 	return view
 }

@@ -1,0 +1,63 @@
+# copiar
+
+A dual-pane terminal file manager with Vim keys: browse two folders side by side and press <kbd>space</kbd> to copy from one to the other — in either direction.
+
+## Quick path
+
+1. Install (Go 1.24+):
+
+   ```bash
+   go install github.com/RHAM91/copy-tui/cmd/copiar@latest
+   ```
+
+2. Run it in any folder — both panels open there:
+
+   ```bash
+   copiar            # with Nerd Font icons
+   copiar --no-icons # if your terminal font has no Nerd Font glyphs
+   ```
+
+3. Move to the destination in one panel, <kbd>tab</kbd> to the other, select a file and press <kbd>space</kbd>.
+
+Press <kbd>?</kbd> inside the app for the full keymap.
+
+## Keys
+
+| Navigation | | Files | |
+|---|---|---|---|
+| `j` / `k` | down / up | `space` | copy to the other panel |
+| `h` / `l` | parent / open folder | `x` | move to the other panel |
+| `gg` / `G` | first / last entry | `d` | move to trash (asks first) |
+| `ctrl+d` / `ctrl+u` | half page down / up | `D` | delete permanently (asks first, defaults to Cancel) |
+| `tab` | switch panel | `r` | rename |
+| `/`, `n` / `N` | search, next / previous match | `a` | new folder |
+| `.` | show / hide hidden files | `?` | toggle help |
+| | | `q` | quit |
+
+**Selection:** `m` marks the entry and moves down, `v` selects a range (press `v` again to keep it), `esc` clears. Copy, move and delete apply to the selection, or to the entry under the cursor when nothing is selected.
+
+## How operations behave
+
+| Topic | Behavior |
+|---|---|
+| Copy semantics | Like `cp -a`: folders are copied recursively, symlinks are copied as links (never followed), permissions and modification times are kept. |
+| Name conflicts | A dialog offers **Overwrite**, **Skip** or **Rename** (`name (1).ext`), with an *Apply to all* toggle. Overwriting a folder merges its contents. |
+| Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
+| Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
+| Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
+| Trash | `d` uses the freedesktop.org home trash (`$XDG_DATA_HOME/Trash`, usually `~/.local/share/Trash`), so file managers can restore items. |
+
+> **WSL note:** the trash is the Linux one. Items trashed from `/mnt/c/...` do not appear in the Windows Recycle Bin.
+
+## Development
+
+```bash
+go test -race ./...          # unit and UI tests
+go run ./cmd/copiar          # run from source
+```
+
+| Path | Responsibility |
+|---|---|
+| `cmd/copiar` | flags and program start |
+| `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI |
+| `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |

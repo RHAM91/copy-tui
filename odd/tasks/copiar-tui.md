@@ -33,8 +33,8 @@ Branch: `feat/copiar-tui` (base `main` @ 701798f) · Delivery: `ask-on-risk` →
 | T6 | S4,S5,S7,S12 | Copy UI: `space`, conflict dialog with apply-to-all, progress modal | inline | item 1 | done | 5c701da |
 | T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | done | a7f5fb4 |
 | T8 | S9 | Delete `d` trash / `D` permanent with confirmations | inline | item 1 | done | 646080e |
-| T9 | S8 | Rename `r`, mkdir `a` | inline | none | done | slice 1 |
-| T10 | S11,A2 | Help bar, `?` help, status errors, README | inline | none | todo | |
+| T9 | S8 | Rename `r`, mkdir `a` | inline | none | done | 6b80665 |
+| T10 | S11,A2 | Help bar, `?` help, status errors, README | inline | none | done | slice 1 |
 
 Route evidence: no Writer trigger reason (tasks are sequential and depend on each other), so the parent writes inline. T5–T8 touch irreversible file effects (high-risk item 1) and get an independent verifier.
 
@@ -52,3 +52,4 @@ Route evidence: no Writer trigger reason (tasks are sequential and depend on eac
 - **L10** T7: refactored `Copy` conflict handling into `copier.target` (shared with `Move`); all 13 copy tests stayed green, proving prior behavior. `ErrCopyIntoItself` renamed `ErrIntoItself` (unreleased). RED: build failed (undefined `Move`, `rename`); UI tests failed (no conflict dialog on `x`). GREEN: `go test -race ./...` ok; cross-device path tested by injecting EXDEV through the `rename` variable (copy+delete, cancel keeps source and cleans destination).
 - **L11** T8 RED: build failed (undefined `Trash`, `Remove`, `TrashDir`, `ConfirmPending`). GREEN: `go test -race ./...` ok. One UI test changed: `q` closes a confirmation like `Esc` (deliberate), so the "unrelated key" case now uses `G`. `UniqueName` naming extracted to `numberedName` (shared with trash naming); copy tests stayed green. `D` defaults to Cancel so Enter alone never deletes; `y` is required.
 - **L12** Independent verifier launched in background for T5/T7/T8 (S5, S6, S8, S9, S12, S13), baseline 1b944a5. T9 RED: build failed (undefined `ValidateName`, `Rename`, `Mkdir`, `InputPending`). GREEN: `go test -race ./...` ok. Rename never replaces an existing entry; errors stay inside the prompt.
+- **L13** T10 RED: build failed (undefined `HelpOpen`). GREEN: `go test -race ./...` ok. Runtime (tmux 120x30): help bar fits one line with "? help · q quit" right-aligned; `?` overlay shows Navigation/Selection/Files/Other in two columns. README added (install, keys, behavior table, WSL trash note).
