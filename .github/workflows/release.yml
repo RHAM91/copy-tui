@@ -6,6 +6,12 @@ name: Release
 on:
   push:
     branches: [main]
+  # Rebuild and upload the binaries of an existing release tag by hand.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build, e.g. v0.1.0"
+        required: true
 
 permissions:
   contents: write
@@ -18,6 +24,7 @@ concurrency:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -31,12 +38,13 @@ jobs:
 
   binaries:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    # always() lets the job run on workflow_dispatch, where release-please is skipped.
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
