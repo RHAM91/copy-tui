@@ -28,6 +28,8 @@ type Model struct {
 
 	// op is the running file operation, nil when idle.
 	op *operation
+	// confirm is the open confirmation dialog, nil when none.
+	confirm *confirmPrompt
 
 	status    string
 	statusErr bool
@@ -73,6 +75,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.op != nil {
 			return m.handleBusyKey(msg)
+		}
+		if m.confirm != nil {
+			return m.handleConfirmKey(msg)
 		}
 		return m.handleKey(msg)
 	case opProgressMsg, opConflictMsg, opDoneMsg:
@@ -142,6 +147,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.copySelection()
 	case "x":
 		return m, m.moveSelection()
+	case "d":
+		m.askTrash()
+	case "D":
+		m.askDelete()
 	}
 	return m, nil
 }
@@ -178,12 +187,13 @@ func (m Model) View() string {
 		m.panels[1].view(rightW, m.active == 1, m.opts),
 	)
 	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), "")
-	if m.op != nil {
-		dialog := m.op.progressView()
-		if m.op.conflict != nil {
-			dialog = m.op.conflict.view()
-		}
-		view = overlay(view, dialog, m.width, m.height)
+	switch {
+	case m.op != nil && m.op.conflict != nil:
+		view = overlay(view, m.op.conflict.view(), m.width, m.height)
+	case m.op != nil:
+		view = overlay(view, m.op.progressView(), m.width, m.height)
+	case m.confirm != nil:
+		view = overlay(view, m.confirm.view(), m.width, m.height)
 	}
 	return view
 }

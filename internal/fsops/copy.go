@@ -389,16 +389,27 @@ func UniqueName(path string) string {
 		return path
 	}
 	dir, base := filepath.Split(path)
-	stem, ext := base, ""
-	if i := strings.LastIndex(base, "."); i > 0 {
-		if info, err := os.Lstat(path); err == nil && !info.IsDir() {
-			stem, ext = base[:i], base[i:]
-		}
+	isDir := false
+	if info, err := os.Lstat(path); err == nil {
+		isDir = info.IsDir()
 	}
 	for n := 1; ; n++ {
-		candidate := filepath.Join(dir, fmt.Sprintf("%s (%d)%s", stem, n, ext))
+		candidate := filepath.Join(dir, numberedName(base, n, isDir))
 		if _, err := os.Lstat(candidate); errors.Is(err, fs.ErrNotExist) {
 			return candidate
 		}
 	}
+}
+
+// numberedName returns base for n == 0 and "stem (n).ext" otherwise. The
+// extension is kept only for files whose name is not just ".something".
+func numberedName(base string, n int, isDir bool) string {
+	if n == 0 {
+		return base
+	}
+	stem, ext := base, ""
+	if i := strings.LastIndex(base, "."); i > 0 && !isDir {
+		stem, ext = base[:i], base[i:]
+	}
+	return fmt.Sprintf("%s (%d)%s", stem, n, ext)
 }
