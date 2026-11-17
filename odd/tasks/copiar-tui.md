@@ -31,8 +31,8 @@ Branch: `feat/copiar-tui` (base `main` @ 701798f) · Delivery: `ask-on-risk` →
 | T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | done | a0f94e8 |
 | T5 | S5,S6,S12,S13 | Copy engine (fsops): recursive, cp -a, progress, cancel + cleanup, conflict naming | inline | item 1 | done | 1d9be95 |
 | T6 | S4,S5,S7,S12 | Copy UI: `space`, conflict dialog with apply-to-all, progress modal | inline | item 1 | done | 5c701da |
-| T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | done | slice 1 |
-| T8 | S9 | Delete `d` trash / `D` permanent with confirmations | inline | item 1 | todo | |
+| T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | done | a7f5fb4 |
+| T8 | S9 | Delete `d` trash / `D` permanent with confirmations | inline | item 1 | done | slice 1 |
 | T9 | S8 | Rename `r`, mkdir `a` | inline | none | todo | |
 | T10 | S11,A2 | Help bar, `?` help, status errors, README | inline | none | todo | |
 
@@ -50,3 +50,4 @@ Route evidence: no Writer trigger reason (tasks are sequential and depend on eac
 - **L8** T5 RED: build failed (undefined `Copy`, `CopyOptions`, `UniqueName`, `chunkSize`). GREEN first run: `go test ./internal/fsops/` ok (13 tests: content/perm/mtime, recursive dirs, symlinks incl. loop and broken, progress totals, skip/overwrite/rename, next free name, dir merge, type mismatch, same-dir duplicate, copy-into-itself, cancel cleanup, cancel during overwrite keeps original, resolver error). Design: temp file + rename, so cancel never leaves partial files nor destroys the overwritten file. Verification: one independent verifier will cover T5, T7 and T8 together (all item 1, all in `internal/fsops`) to keep verification as rare as possible.
 - **L9** T6 RED: build failed (undefined `Busy`, `ConflictPending`, `startOp`). GREEN: `go test -race -count=3 ./...` ok. Runtime (tmux 110x24): conflict dialog rendered over panels, `o` overwrote `dst/report.txt` ("new"), 300 MB copy completed. Icon rows looked shifted in `capture-pane` only (glyph display artifact; `--no-icons` capture aligned, Go-side widths equal). Dialog widened to 60 so hints fit one line.
 - **L10** T7: refactored `Copy` conflict handling into `copier.target` (shared with `Move`); all 13 copy tests stayed green, proving prior behavior. `ErrCopyIntoItself` renamed `ErrIntoItself` (unreleased). RED: build failed (undefined `Move`, `rename`); UI tests failed (no conflict dialog on `x`). GREEN: `go test -race ./...` ok; cross-device path tested by injecting EXDEV through the `rename` variable (copy+delete, cancel keeps source and cleans destination).
+- **L11** T8 RED: build failed (undefined `Trash`, `Remove`, `TrashDir`, `ConfirmPending`). GREEN: `go test -race ./...` ok. One UI test changed: `q` closes a confirmation like `Esc` (deliberate), so the "unrelated key" case now uses `G`. `UniqueName` naming extracted to `numberedName` (shared with trash naming); copy tests stayed green. `D` defaults to Cancel so Enter alone never deletes; `y` is required.
