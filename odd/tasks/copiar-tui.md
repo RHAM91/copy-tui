@@ -1,0 +1,47 @@
+# copiar-tui — dual-pane file manager TUI in Go
+
+Objective: build `copiar`, a Vim-style dual-pane TUI to copy (and manage) files between folders on the same machine.
+Branch: `feat/copiar-tui` (base `main` @ 701798f) · Delivery: `ask-on-risk` → `feature-branch-chain` · Test runner: `go test ./...` (stdlib `testing` + `teatest`).
+
+## Specs
+
+- **S1** Purpose: "Copiar archivos entre diferentes carpetas de la misma computadora, es como un cp pero con interface gráfica". Binary name: "el binarlo llamalo copiar". Module `github.com/RHAM91/copy-tui`, remote `https://github.com/RHAM91/copy-tui.git`.
+- **S2** Layout: "debe tener pantalla dividida (doble planel), los paneles deben ubicarse en el directorio actual". Each panel navigates independently; `Tab` switches the active panel.
+- **S3** Vim mode: "debe tener soporte modo vim". Confirmed keymap ("me sirve así"): `j`/`k` down/up, `h`/`l` parent/enter, `gg`/`G` top/bottom, `Ctrl+d`/`Ctrl+u` half page, `/` search with `n`/`N`, `Tab` switch panel, `m` mark, `v` visual selection, `Esc` clear selection, `space` copy, `.` toggle hidden, `?` full help, `q` quit.
+- **S4** Copy: "al tener seleccionado un archivo si se presiona la tecla "espacio" se ejecuta el copiado entre carpetas, debe ser bidireccional". Copies from the active panel to the other one.
+- **S5** Conflicts: "la 1, preguntar con diálogo" — overwrite / skip / rename (e.g. `archivo (1).txt`); with multiple items "vamos con el 1": each option has an "apply to all" variant.
+- **S6** Directories: "la 1, recursivo con barra de progreso".
+- **S7** Multi-select: "la 1, selección múltiple con v y m". `space` copies marked items, or the item under the cursor when nothing is marked.
+- **S8** Scope: "vamos con el 3" — full manager: copy, move, delete, rename, mkdir. Keys ("me sirven"): `x` move to other panel, `r` rename (cursor item), `a` create folder in active panel.
+- **S9** Delete: "la 3, ambos" — `d` sends to the freedesktop trash (`~/.local/share/Trash`), `D` deletes permanently; "d con confirmación también" — both confirm, `D` with a more explicit confirmation.
+- **S10** Look: "la interface debe ser moderna, limpia, e intuitiva". "la 1, con flag --no-icons": Nerd Font icons + name + size, current path above each panel, active panel highlighted by border color; `--no-icons` disables icons. Palette: "la 1, catppuccin mocha".
+- **S11** Help: "debe tener una barra con los comandos como ayuda". `?` shows full help.
+- **S12** Long operations: "la 1, modal con Esc para cancelar" — modal progress dialog; `Esc` cancels and removes the partially copied file.
+- **S13** Copy fidelity: "la 1, como cp -a" — symlinks copied as symlinks (not followed), permissions and mtime preserved.
+- Assumption A1: entries sorted directories first, then case-insensitive by name; hidden files hidden by default.
+- Assumption A2: errors (e.g. permission denied) are shown in the status bar, never crash the app.
+
+## Tasks
+
+| ID | Specs | Task | Route | Risk | Status | Commit |
+|----|-------|------|-------|------|--------|--------|
+| T1 | S1,S2,S10 | Scaffold: module, `cmd/copiar`, `--no-icons`, theme, two empty panels | inline | none | done | slice 1 |
+| T2 | S2,S3,S10,A1 | Panel navigation, listing, icons, size, path header, hidden toggle | inline | none | todo | |
+| T3 | S3 | Search `/`, `n`, `N` | inline | none | todo | |
+| T4 | S3,S7 | Selection `m`, `v`, `Esc` | inline | none | todo | |
+| T5 | S5,S6,S12,S13 | Copy engine (fsops): recursive, cp -a, progress, cancel + cleanup, conflict naming | inline | item 1 | todo | |
+| T6 | S4,S5,S7,S12 | Copy UI: `space`, conflict dialog with apply-to-all, progress modal | inline | item 1 | todo | |
+| T7 | S8 | Move `x` (rename, cross-device fallback) | inline | item 1 | todo | |
+| T8 | S9 | Delete `d` trash / `D` permanent with confirmations | inline | item 1 | todo | |
+| T9 | S8 | Rename `r`, mkdir `a` | inline | none | todo | |
+| T10 | S11,A2 | Help bar, `?` help, status errors, README | inline | none | todo | |
+
+Route evidence: no Writer trigger reason (tasks are sequential and depend on each other), so the parent writes inline. T5–T8 touch irreversible file effects (high-risk item 1) and get an independent verifier.
+
+## Log
+
+- **L1** (2026-11-17) Original request: "que tal hermano, quiero crear una tui en go, con el siguiente proposito: Copiar archivos entre diferentes carpetas de la misma computadora, es como un cp pero con interface gráfica, debe tener pantalla dividida (doble planel), los paneles deben ubicarse en el directorio actual, debe tener soporte modo vim, al tener seleccionado un archivo si se presiona la tecla "espacio" se ejecuta el copiado entre carpetas, debe ser bidireccional, la interface debe ser moderna, limpia, e intuitiva, debe tener una barra con los comandos como ayuda. Me puedría ayudar primero con la planificación, utiliza odd y hazme todas las preguntas necesarias para mejorar la implementación."
+- **L2** (2026-11-17) Planning Q&A answers captured verbatim in S2–S13. Implementation authorized: "si, adelante". User note: tmux is available for interactive tests.
+- **L3** (2026-11-17) Forecast ~2500 authored changed lines (> 400): `ask-on-risk` requires choosing a chain strategy before the first commit.
+- **L4** (2026-11-17) Chain strategy: "vamos con el 1" → `feature-branch-chain` (slice PRs target `feat/copiar-tui`; one final merge to `main`). Empty root commit 701798f on `main`.
+- **L5** T1 RED: `go test ./...` build failed (undefined `New`, `Options`, `parseArgs`). GREEN: `go vet ./...` clean; `go test ./...` ok (cmd/copiar, internal/ui).
