@@ -67,6 +67,43 @@ func (m Model) Status() string { return m.status }
 // StatusIsError reports whether the status message is an error.
 func (m Model) StatusIsError() bool { return m.statusErr }
 
+// modalKind is the layer on top of the panels that owns the keyboard.
+type modalKind int
+
+const (
+	modalNone modalKind = iota
+	// modalConflict is the "file already exists" dialog of a running operation.
+	modalConflict
+	// modalOp is the progress dialog of a running operation.
+	modalOp
+	modalConfirm
+	modalInput
+	modalHelp
+	// modalSearch is the "/" prompt. It has no overlay: it takes over the
+	// status bar.
+	modalSearch
+)
+
+// activeModal returns the topmost layer. This order is the only place that
+// decides which layer receives keys and which overlay is drawn.
+func (m Model) activeModal() modalKind {
+	switch {
+	case m.op != nil && m.op.conflict != nil:
+		return modalConflict
+	case m.op != nil:
+		return modalOp
+	case m.confirm != nil:
+		return modalConfirm
+	case m.input != nil:
+		return modalInput
+	case m.helpOpen:
+		return modalHelp
+	case m.search.active:
+		return modalSearch
+	}
+	return modalNone
+}
+
 func (m *Model) setInfo(msg string) { m.status, m.statusErr = msg, false }
 func (m *Model) setError(err error) { m.status, m.statusErr = err.Error(), true }
 
@@ -90,17 +127,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyMsg:
-		if m.op != nil {
+		switch m.activeModal() {
+		case modalConflict, modalOp:
 			return m.handleBusyKey(msg)
-		}
-		if m.confirm != nil {
+		case modalConfirm:
 			return m.handleConfirmKey(msg)
-		}
-		if m.input != nil {
+		case modalInput:
 			return m.handleInputKey(msg)
-		}
-		if m.helpOpen {
+		case modalHelp:
 			return m.handleHelpKey(msg.String()), nil
+		case modalSearch:
+			return m.handleSearchKey(msg)
 		}
 		return m.handleKey(msg)
 	case opProgressMsg, opConflictMsg, opDoneMsg:
@@ -113,9 +150,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.search.active {
-		return m.handleSearchKey(msg)
-	}
 	k := msg.String()
 
 	if m.pendingG {
@@ -219,16 +253,16 @@ func (m Model) View() string {
 		m.panels[1].view(rightW, m.active == 1, m.opts),
 	)
 	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), m.helpBarView())
-	switch {
-	case m.op != nil && m.op.conflict != nil:
+	switch m.activeModal() {
+	case modalConflict:
 		view = overlay(view, m.op.conflict.view(), m.width, m.height)
-	case m.op != nil:
+	case modalOp:
 		view = overlay(view, m.op.progressView(), m.width, m.height)
-	case m.confirm != nil:
+	case modalConfirm:
 		view = overlay(view, m.confirm.view(), m.width, m.height)
-	case m.input != nil:
+	case modalInput:
 		view = overlay(view, m.input.view(), m.width, m.height)
-	case m.helpOpen:
+	case modalHelp:
 		view = overlay(view, fullHelpView(), m.width, m.height)
 	}
 	return view
