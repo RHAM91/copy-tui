@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"syscall"
 )
 
@@ -84,16 +83,18 @@ func (c *copier) moveEntry(src, dst string, info fs.FileInfo, share Progress) er
 	// around: park the old entry aside and restore it if the move fails.
 	aside := ""
 	if dstExists && (dstInfo.IsDir() || info.IsDir()) {
-		aside = UniqueName(filepath.Join(filepath.Dir(dst), "."+filepath.Base(dst)+".copiar-old"))
-		if err := os.Rename(dst, aside); err != nil {
+		var err error
+		if aside, err = parkAside(dst); err != nil {
 			return err
 		}
 	}
-	restore := func() {
-		if aside != "" {
-			_ = os.RemoveAll(dst)
-			_ = os.Rename(aside, dst)
+	// Once the new entry is complete at dst, the parked one is dropped even
+	// if removing the source fails afterwards.
+	dropAside := func() error {
+		if aside == "" {
+			return nil
 		}
+		return os.RemoveAll(aside)
 	}
 
 	err := rename(src, dst)
@@ -102,25 +103,19 @@ func (c *copier) moveEntry(src, dst string, info fs.FileInfo, share Progress) er
 		c.prog.BytesDone += share.BytesTotal
 		c.prog.FilesDone += share.FilesTotal
 		c.report(src)
+		return dropAside()
 	case errors.Is(err, syscall.EXDEV):
 		if err := c.copyEntry(src, dst, info); err != nil {
 			if aside != "" {
-				restore()
+				restoreAside(dst, aside)
 			} else if !dstExists {
 				_ = os.RemoveAll(dst)
 			}
 			return err
 		}
-		if err := os.RemoveAll(src); err != nil {
-			return err
-		}
+		return errors.Join(dropAside(), os.RemoveAll(src))
 	default:
-		restore()
+		restoreAside(dst, aside)
 		return err
 	}
-
-	if aside != "" {
-		return os.RemoveAll(aside)
-	}
-	return nil
 }

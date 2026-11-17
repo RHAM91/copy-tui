@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -86,8 +87,9 @@ func TestViewShowsCurrentPathInBothPanels(t *testing.T) {
 	dir := t.TempDir()
 	m := sized(New(dir, Options{}))
 
+	// Long paths are cut from the left, so the last element is always shown.
 	view := m.View()
-	if n := strings.Count(view, dir); n < 2 {
+	if n := strings.Count(view, filepath.Base(dir)); n < 2 {
 		t.Fatalf("view shows path %d times, want at least 2:\n%s", n, view)
 	}
 }

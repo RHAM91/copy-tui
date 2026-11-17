@@ -65,7 +65,11 @@ func Trash(ctx context.Context, paths []string, onProgress func(Progress)) (int,
 			return done, err
 		}
 		if err := c.moveEntry(abs, filepath.Join(filesDir, name), info, shares[i]); err != nil {
-			os.Remove(infoPath)
+			// Keep the .trashinfo when data already landed in files/, so the
+			// file manager can still restore it.
+			if _, statErr := os.Lstat(filepath.Join(filesDir, name)); errors.Is(statErr, fs.ErrNotExist) {
+				os.Remove(infoPath)
+			}
 			return done, err
 		}
 		done++
