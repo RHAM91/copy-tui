@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"syscall"
 )
 
 // rename is os.Rename, replaceable in tests to simulate cross-device moves.
@@ -27,16 +26,9 @@ func Move(ctx context.Context, sources []string, dstDir string, opts CopyOptions
 			return res, err
 		}
 	}
-	shares := make([]Progress, len(sources))
-	for i, src := range sources {
-		before := c.prog
-		if err := c.measure(src); err != nil {
-			return res, err
-		}
-		shares[i] = Progress{
-			BytesTotal: c.prog.BytesTotal - before.BytesTotal,
-			FilesTotal: c.prog.FilesTotal - before.FilesTotal,
-		}
+	shares, err := c.measureEach(sources)
+	if err != nil {
+		return res, err
 	}
 	c.report("")
 
@@ -104,7 +96,7 @@ func (c *copier) moveEntry(src, dst string, info fs.FileInfo, share Progress) er
 		c.prog.FilesDone += share.FilesTotal
 		c.report(src)
 		return dropAside()
-	case errors.Is(err, syscall.EXDEV):
+	case isCrossDevice(err):
 		if err := c.copyEntry(src, dst, info); err != nil {
 			if aside != "" {
 				restoreAside(dst, aside)

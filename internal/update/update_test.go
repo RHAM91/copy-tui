@@ -202,7 +202,7 @@ func TestApplyReplacesExecutable(t *testing.T) {
 		t.Fatalf("executable content = %q", got)
 	}
 	info, _ := os.Stat(exe)
-	if info.Mode().Perm()&0o100 == 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0 {
 		t.Fatalf("updated executable is not executable: %v", info.Mode())
 	}
 }

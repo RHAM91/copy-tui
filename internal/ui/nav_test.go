@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -175,8 +176,8 @@ func TestDotTogglesHiddenFiles(t *testing.T) {
 }
 
 func TestUnreadableDirectoryShowsErrorAndStays(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root can read any directory")
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not enforced here")
 	}
 	root := tree(t, "locked/inner.txt")
 	locked := filepath.Join(root, "locked")

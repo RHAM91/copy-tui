@@ -68,7 +68,7 @@ func TestCopyFilePreservesContentPermissionsAndMtime(t *testing.T) {
 		t.Fatalf("content = %q", got)
 	}
 	info, _ := os.Stat(out)
-	if info.Mode().Perm() != 0o640 {
+	if unixPerms() && info.Mode().Perm() != 0o640 {
 		t.Fatalf("perm = %v, want 0640", info.Mode().Perm())
 	}
 	if !info.ModTime().Equal(past) {
@@ -111,7 +111,7 @@ func TestCopyDirectoryRecursively(t *testing.T) {
 		t.Fatalf("empty dir not copied: %v", err)
 	}
 	info, _ := os.Stat(filepath.Join(out, "deep"))
-	if info.Mode().Perm() != 0o750 {
+	if unixPerms() && info.Mode().Perm() != 0o750 {
 		t.Fatalf("dir perm = %v, want 0750", info.Mode().Perm())
 	}
 	if !info.ModTime().Equal(past) {
@@ -141,7 +141,7 @@ func TestCopyKeepsSymlinksAsLinks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s is not a symlink: %v", name, err)
 		}
-		if got != want {
+		if got != filepath.FromSlash(want) { // Windows stores link targets with backslashes
 			t.Fatalf("%s -> %q, want %q", name, got, want)
 		}
 	}
@@ -401,5 +401,25 @@ func TestUniqueName(t *testing.T) {
 				t.Fatalf("UniqueName(%q) = %q, want %q", tt.in, filepath.Base(got), tt.want)
 			}
 		})
+	}
+}
+
+func TestCopyPreservesAccessTime(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	f := filepath.Join(src, "a.txt")
+	mustWrite(t, f, "x", 0o644)
+	atime := time.Date(2019, 5, 6, 7, 8, 9, 0, time.UTC)
+	if err := os.Chtimes(f, atime, past); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Copy(context.Background(), []string{f}, dst, CopyOptions{Resolve: failResolver(t)}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(dst, "a.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := accessTime(info); !got.Equal(atime) {
+		t.Fatalf("access time = %v, want %v", got, atime)
 	}
 }

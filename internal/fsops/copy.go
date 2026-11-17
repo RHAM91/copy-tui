@@ -9,9 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // chunkSize is how many bytes are copied between progress reports and
@@ -261,6 +258,23 @@ func (c *copier) measure(src string) error {
 	})
 }
 
+// measureEach adds every path to the progress totals and returns the share
+// of each one, so an entry handled at once (a rename) can be counted as done.
+func (c *copier) measureEach(paths []string) ([]Progress, error) {
+	shares := make([]Progress, len(paths))
+	for i, p := range paths {
+		before := c.prog
+		if err := c.measure(p); err != nil {
+			return nil, err
+		}
+		shares[i] = Progress{
+			BytesTotal: c.prog.BytesTotal - before.BytesTotal,
+			FilesTotal: c.prog.FilesTotal - before.FilesTotal,
+		}
+	}
+	return shares, nil
+}
+
 // skip counts src as done so the progress bar still reaches 100%.
 func (c *copier) skip(src string) error {
 	before := c.prog
@@ -357,12 +371,8 @@ func (c *copier) copySymlink(src, dst string, info fs.FileInfo) error {
 			return err
 		}
 	}
-	ts := []unix.Timespec{
-		unix.NsecToTimespec(accessTime(info).UnixNano()),
-		unix.NsecToTimespec(info.ModTime().UnixNano()),
-	}
 	// Best effort: some file systems cannot set times on links.
-	_ = unix.UtimesNanoAt(unix.AT_FDCWD, dst, ts, unix.AT_SYMLINK_NOFOLLOW)
+	setLinkTimes(dst, accessTime(info), info.ModTime())
 	c.prog.FilesDone++
 	c.report(src)
 	return nil
@@ -443,13 +453,6 @@ func (c *copier) copyFile(src, dst string, info fs.FileInfo) (err error) {
 
 func preservedMode(info fs.FileInfo) fs.FileMode {
 	return info.Mode() & (fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky)
-}
-
-func accessTime(info fs.FileInfo) time.Time {
-	if st, ok := info.Sys().(*unix.Stat_t); ok {
-		return time.Unix(st.Atim.Unix())
-	}
-	return info.ModTime()
 }
 
 // UniqueName returns path when nothing exists there, or the first free

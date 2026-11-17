@@ -8,7 +8,7 @@ builds:
     binary: copiar
     env:
       - CGO_ENABLED=0
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     flags: [-trimpath]
     ldflags:
@@ -18,6 +18,10 @@ archives:
   - id: copiar
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Windows users expect .zip; the updater handles both formats.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     files:
       - README.md
 

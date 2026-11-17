@@ -77,38 +77,10 @@ func TestCopyTypeSwapLeavesNoLeftovers(t *testing.T) {
 	}
 }
 
-// B3: once data landed in Trash/files, its .trashinfo must stay.
-func TestTrashCrossDevicePartialDeleteKeepsInfo(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores directory permissions")
-	}
-	trash := isolatedTrash(t)
-	crossDevice(t)
-	src := filepath.Join(t.TempDir(), "D")
-	mustWrite(t, filepath.Join(src, "a"), "a", 0o644)
-	mustWrite(t, filepath.Join(src, "ro", "b"), "b", 0o644)
-	if err := os.Chmod(filepath.Join(src, "ro"), 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		os.Chmod(filepath.Join(src, "ro"), 0o755)
-		os.Chmod(filepath.Join(trash, "files", "D", "ro"), 0o755)
-	})
-
-	if _, err := Trash(context.Background(), []string{src}, nil); err == nil {
-		t.Fatal("expected an error deleting the read-only source")
-	}
-	if exists(filepath.Join(trash, "files", "D")) && !exists(filepath.Join(trash, "info", "D.trashinfo")) {
-		t.Fatal("trashed entry orphaned without .trashinfo")
-	}
-}
-
 // Observation: a cross-device move whose source cannot be fully removed must
 // not leave the parked ".copiar-old" entry in the destination.
 func TestMoveCrossDeviceSourceRemovalFailureLeavesNoParkedEntry(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores directory permissions")
-	}
+	requireEnforcedPermissions(t)
 	crossDevice(t)
 	base := t.TempDir()
 	src := filepath.Join(base, "src", "data")

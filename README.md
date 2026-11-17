@@ -4,11 +4,19 @@ A dual-pane terminal file manager with Vim keys: browse two folders side by side
 
 ## Quick path
 
-1. Install — either download a binary for Linux or macOS (amd64/arm64) from the [Releases](https://github.com/RHAM91/copy-tui/releases) page and put `copiar` in your `PATH`, or build it with Go 1.24+:
+1. Install — download the archive for your system from the [Releases](https://github.com/RHAM91/copy-tui/releases) page and put `copiar` (`copiar.exe` on Windows) in your `PATH`, or build it with Go 1.24+:
+
+   | System | Archive |
+   |---|---|
+   | Linux (x86-64 / ARM64) | `copiar_<version>_linux_amd64.tar.gz` / `_linux_arm64.tar.gz` |
+   | macOS Intel / Apple Silicon | `copiar_<version>_darwin_amd64.tar.gz` / `_darwin_arm64.tar.gz` |
+   | Windows (x86-64 / ARM64) | `copiar_<version>_windows_amd64.zip` / `_windows_arm64.zip` |
 
    ```bash
    go install github.com/RHAM91/copy-tui/cmd/copiar@latest
    ```
+
+   > **macOS:** binaries are not signed, so the first run of a file downloaded with a browser is blocked by Gatekeeper. Allow it once with `xattr -d com.apple.quarantine ./copiar`. Updates through `copiar update` are not affected.
 
 2. Run it in any folder — both panels open there:
 
@@ -47,8 +55,8 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
 | Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
 | Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
-| Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` if it lives in a system folder. Builds from source (`dev`) do not update. |
-| Trash | `d` uses the freedesktop.org home trash (`$XDG_DATA_HOME/Trash`, usually `~/.local/share/Trash`), so file managers can restore items. |
+| Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` (or an Administrator terminal on Windows) if it lives in a system folder. Builds from source (`dev`) do not update. |
+| Trash | `d` uses the system trash so items can be restored: the freedesktop.org trash on Linux (`~/.local/share/Trash`), Finder on macOS (with **Put Back**; falls back to `~/.Trash` when Finder cannot be used, e.g. over SSH), and the Recycle Bin on Windows. |
 
 > **WSL note:** the trash is the Linux one. Items trashed from `/mnt/c/...` do not appear in the Windows Recycle Bin.
 
@@ -62,7 +70,8 @@ go run ./cmd/copiar          # run from source
 | Path | Responsibility |
 |---|---|
 | `cmd/copiar` | flags and program start |
-| `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI |
+| `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI; OS-specific code in `*_linux.go`, `*_darwin.go`, `*_windows.go`, `*_unix.go` |
+| `internal/update` | release check and self-update (checksum verified) |
 | `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |
 
 ## Releases

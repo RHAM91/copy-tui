@@ -50,7 +50,7 @@ func TestMoveFile(t *testing.T) {
 				t.Fatalf("content = %q", got)
 			}
 			info, _ := os.Stat(out)
-			if info.Mode().Perm() != 0o640 || !info.ModTime().Equal(past) {
+			if (unixPerms() && info.Mode().Perm() != 0o640) || !info.ModTime().Equal(past) {
 				t.Fatalf("mode/mtime not preserved: %v %v", info.Mode(), info.ModTime())
 			}
 			if res.Copied != 1 {
@@ -82,7 +82,7 @@ func TestMoveDirectory(t *testing.T) {
 			if got := readFile(t, filepath.Join(dst, "d", "sub", "f.txt")); got != "F" {
 				t.Fatalf("f.txt = %q", got)
 			}
-			if target, err := os.Readlink(filepath.Join(dst, "d", "link")); err != nil || target != "sub/f.txt" {
+			if target, err := os.Readlink(filepath.Join(dst, "d", "link")); err != nil || target != filepath.FromSlash("sub/f.txt") {
 				t.Fatalf("link = %q, %v", target, err)
 			}
 		})
