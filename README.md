@@ -42,7 +42,8 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | `tab` | switch panel | `r` | rename |
 | `/`, `n` / `N` | search, next / previous match | `a` | new folder |
 | `.` | show / hide hidden files | `?` | toggle help |
-| | | `q` | quit |
+| `ctrl+s` | save both panel paths as a bookmark | `q` | quit |
+| `ctrl+b` | open the bookmark table | | |
 
 **Selection:** `m` marks the entry and moves down, `v` selects a range (press `v` again to keep it), `esc` clears. Copy, move and delete apply to the selection, or to the entry under the cursor when nothing is selected.
 
@@ -56,9 +57,12 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
 | Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
 | Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` (or an Administrator terminal on Windows) if it lives in a system folder. Builds from source (`dev`) do not update. |
+| Bookmarks | `ctrl+s` asks for a name and saves the left and right panel folders; an existing name asks before replacing it. `ctrl+b` opens the table: `enter` opens both folders, `r` renames and `d` deletes (both ask first). Before opening, both folders are checked: if one is gone you can **Go anyway** (only the existing one opens), **Delete** the broken bookmark or cancel; if both are gone you can delete it or cancel. Bookmarks are stored in `~/.config/copiar/bookmarks.json` on Linux, `~/Library/Application Support/copiar/` on macOS and `%AppData%\copiar\` on Windows. |
 | Trash | `d` uses the system trash so items can be restored: the freedesktop.org trash on Linux (`~/.local/share/Trash`), Finder on macOS (with **Put Back**; falls back to `~/.Trash` when Finder cannot be used, e.g. over SSH), and the Recycle Bin on Windows. |
 
 > **WSL note:** the trash is the Linux one. Items trashed from `/mnt/c/...` do not appear in the Windows Recycle Bin.
+
+> **tmux note:** `ctrl+b` is tmux's default prefix, so tmux keeps it. Press it twice (`ctrl+b ctrl+b`) to send it to copiar, or change the prefix (for example `set -g prefix C-a`).
 
 ## Development
 
@@ -71,6 +75,7 @@ go run ./cmd/copiar          # run from source
 |---|---|
 | `cmd/copiar` | flags and program start |
 | `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI; OS-specific code in `*_linux.go`, `*_darwin.go`, `*_windows.go`, `*_unix.go` |
+| `internal/bookmarks` | named left/right folder pairs saved as JSON in the user config directory |
 | `internal/update` | release check and self-update (checksum verified) |
 | `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |
 

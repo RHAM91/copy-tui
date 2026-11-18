@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creativeprojects/go-selfupdate"
 
+	"github.com/RHAM91/copy-tui/internal/bookmarks"
 	"github.com/RHAM91/copy-tui/internal/ui"
 	"github.com/RHAM91/copy-tui/internal/update"
 )
@@ -170,6 +171,11 @@ func main() {
 	}
 
 	cfg.ui.CheckUpdate = startupCheck(svc, version)
+	// Without a config directory bookmarks stay disabled; ctrl+s and ctrl+b
+	// then explain why in the status bar.
+	if path, err := bookmarks.DefaultPath(); err == nil {
+		cfg.ui.Bookmarks = bookmarks.NewStore(path)
+	}
 	p := tea.NewProgram(ui.New(cwd, cfg.ui), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "copiar: %v\n", err)
