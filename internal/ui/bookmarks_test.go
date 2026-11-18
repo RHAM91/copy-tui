@@ -197,13 +197,14 @@ func TestBookmarkTableEscClosesAndEmptyTableExplainsHowToSave(t *testing.T) {
 func TestBrokenBookmarkWarnsAndCanBeDeleted(t *testing.T) {
 	root := tree(t)
 	m, store := bookmarkModel(t, root)
-	gone := filepath.Join(root, "gone")
+	// Short missing paths fit on one line, so the check does not depend on
+	// how long the temp dir is (it is very long on macOS and gets wrapped).
+	gone := filepath.Join(string(filepath.Separator), "copiar-missing", "gone")
 	mustPut(t, store, bookmarks.Bookmark{Name: "old", Left: gone + "-left", Right: gone + "-right"})
 
 	m = press(t, m, "ctrl+b", "enter")
 	view := m.View()
-	// Paths are wrapped in the dialog, so look for their last element.
-	for _, want := range []string{"broken", "Left folder not found", "Right folder not found", "gone-left", "gone-right"} {
+	for _, want := range []string{"broken", "Left folder not found", "Right folder not found", gone + "-left", gone + "-right"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("dialog lacks %q:\n%s", want, view)
 		}
