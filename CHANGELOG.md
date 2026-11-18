@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/RHAM91/copy-tui/compare/v0.1.0...v0.2.0) (2026-11-18)
+
+
+### Features
+
+* save and open panel bookmarks with ctrl+s and ctrl+b ([#10](https://github.com/RHAM91/copy-tui/issues/10)) ([19ceb71](https://github.com/RHAM91/copy-tui/commit/19ceb716a5b1d562d8852f20b828e4b870908ce5))
+
 ## 0.1.0 (2026-11-17)
 
 
