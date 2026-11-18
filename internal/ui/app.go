@@ -8,6 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/RHAM91/copy-tui/internal/bookmarks"
 )
 
 // Options configures the UI.
@@ -17,6 +19,8 @@ type Options struct {
 	// CheckUpdate, when set, runs in the background at startup and returns
 	// a newer version ("" when up to date) to show in the status bar.
 	CheckUpdate func(context.Context) (string, error)
+	// Bookmarks stores the ctrl+s / ctrl+b bookmarks; nil disables them.
+	Bookmarks *bookmarks.Store
 }
 
 // Model is the root Bubble Tea model: two panels and the active one.
@@ -38,6 +42,8 @@ type Model struct {
 	confirm *confirmPrompt
 	// input is the open text prompt (rename, new folder), nil when none.
 	input *inputPrompt
+	// bookmarks is the open ctrl+b table, nil when closed.
+	bookmarks *bookmarkList
 	// helpOpen is true while the full "?" help is shown.
 	helpOpen bool
 	// updateVersion is a newer release found at startup, "" when none.
@@ -78,6 +84,9 @@ const (
 	modalOp
 	modalConfirm
 	modalInput
+	// modalBookmarks is the ctrl+b table and its broken-bookmark dialog. It
+	// sits under confirm and input, which it opens for delete and rename.
+	modalBookmarks
 	modalHelp
 	// modalSearch is the "/" prompt. It has no overlay: it takes over the
 	// status bar.
@@ -96,6 +105,8 @@ func (m Model) activeModal() modalKind {
 		return modalConfirm
 	case m.input != nil:
 		return modalInput
+	case m.bookmarks != nil:
+		return modalBookmarks
 	case m.helpOpen:
 		return modalHelp
 	case m.search.active:
@@ -134,6 +145,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfirmKey(msg)
 		case modalInput:
 			return m.handleInputKey(msg)
+		case modalBookmarks:
+			return m.handleBookmarksKey(msg)
 		case modalHelp:
 			return m.handleHelpKey(msg.String()), nil
 		case modalSearch:
@@ -217,6 +230,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.askRename()
 	case "a":
 		m.askMkdir()
+	case "ctrl+s":
+		m.askSaveBookmark()
+	case "ctrl+b":
+		m.openBookmarks()
 	}
 	return m, nil
 }
@@ -262,6 +279,8 @@ func (m Model) View() string {
 		view = overlay(view, m.confirm.view(), m.width, m.height)
 	case modalInput:
 		view = overlay(view, m.input.view(), m.width, m.height)
+	case modalBookmarks:
+		view = overlay(view, m.bookmarks.view(m.width, m.height), m.width, m.height)
 	case modalHelp:
 		view = overlay(view, fullHelpView(), m.width, m.height)
 	}

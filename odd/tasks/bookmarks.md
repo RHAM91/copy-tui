@@ -21,11 +21,11 @@ Branch: `feat/bookmarks` (base `main` @ 41e0c28) · Delivery: `ask-on-risk` · T
 
 | ID | Specs | Task | Route | Risk | Status | Commit |
 |----|-------|------|-------|------|--------|--------|
-| T1 | S1,S2,A1,A2 | `internal/bookmarks` store: load, save atomically, add/replace, rename, delete | inline | none | pending | |
-| T2 | S2,S3 | `ctrl+s` name prompt, replace confirmation | inline | none | pending | |
-| T3 | S4,S5,S6 | `ctrl+b` table, enter navigates, broken dialog (go anyway / delete / cancel) | inline | none | pending | |
-| T4 | S7,A4 | `d` delete and `r` rename in the table, with confirmations | inline | none | pending | |
-| T5 | all | Help, README, manual check in tmux | inline | none | pending | |
+| T1 | S1,S2,A1,A2 | `internal/bookmarks` store: load, save atomically, add/replace, rename, delete | inline | none | done | 917f42d |
+| T2 | S2,S3 | `ctrl+s` name prompt, replace confirmation | inline | none | done | see L7 |
+| T3 | S4,S5,S6 | `ctrl+b` table, enter navigates, broken dialog (go anyway / delete / cancel) | inline | none | done | see L7 |
+| T4 | S7,A4 | `d` delete and `r` rename in the table, with confirmations | inline | none | done | see L7 |
+| T5 | all | Help, README, manual check in tmux | inline | none | done | see L7 |
 
 Route evidence: no Writer trigger reason (tasks depend on each other), so the parent writes inline. The bookmarks file is a new persisted record, not a change to existing data, so no high-risk item applies.
 
@@ -36,3 +36,5 @@ Route evidence: no Writer trigger reason (tasks depend on each other), so the pa
 - **L3** Partially broken answer: "la 1, que me deje ir igual".
 - **L4** Table actions answer: "2 con confirmarción de ambas".
 - **L5** The user's tmux prefix is `C-a`, so `ctrl+b` reaches the app in their setup.
+- **L6** T1: RED (build failed, undefined `Bookmark`) → GREEN, 9 store tests. A corrupt file makes every write fail, so it is never overwritten.
+- **L7** T2–T5 in one commit (one UI unit: the table opens the delete/rename dialogs, so they are not independent). RED (undefined `BookmarksOpen`) → GREEN, 13 UI tests plus 3 modal-precedence cases; `go test -race ./...` green; Windows and macOS cross-builds compile. The manual check in a separate tmux session with an isolated `XDG_CONFIG_HOME` covered save, open, partly broken + go anyway, fully broken (enter defaults to Cancel) + delete, replace, and rename. It found a bug: `padRight` always adds a space, so the highlighted row was one column too wide and wrapped once styled. Pinned by `TestBookmarkTableRowsWithLongPathsDoNotWrap` (it forces TrueColor, because the wrap only shows with ANSI styles), RED before the fix. The broken dialog shows full wrapped paths instead of truncated ones, so the message is clear. Authored lines ≈ 1280 across both commits, over the 400 heuristic; kept as two units because the UI is one behavior. Risk: none (new keys and a new file; no existing data, flags, or shared helpers changed).
