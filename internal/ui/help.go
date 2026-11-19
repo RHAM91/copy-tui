@@ -32,7 +32,7 @@ var helpGroups = []helpGroup{
 	}},
 	{title: "Files", keys: [][2]string{
 		{"space", "copy to the other panel"},
-		{"x", "move to the other panel"},
+		{"x", "move to the other panel (asks first)"},
 		{"d", "move to trash"},
 		{"D", "delete permanently"},
 		{"r", "rename"},

@@ -35,13 +35,25 @@ func (m *Model) copySelection() tea.Cmd {
 	})
 }
 
-// moveSelection moves the selection of the active panel into the other one.
-func (m *Model) moveSelection() tea.Cmd {
-	paths := m.selectedPaths()
+// askMove opens the confirmation to move the selection of the active panel
+// into the other one, so a stray "x" never moves anything by itself.
+func (m *Model) askMove() {
+	paths, names := m.selectedPaths(), m.selectedNames()
 	if len(paths) == 0 {
-		return nil
+		return
 	}
 	dstDir := m.otherDir()
+	m.confirm = &confirmPrompt{
+		title:    fmt.Sprintf("Move %s to the other panel?", plural(len(paths), "item", "items")),
+		items:    names,
+		note:     "To " + displayPath(dstDir),
+		yesLabel: "Move",
+		onYes:    func(m *Model) tea.Cmd { return m.moveSelection(paths, dstDir) },
+	}
+}
+
+// moveSelection moves paths into dstDir.
+func (m *Model) moveSelection(paths []string, dstDir string) tea.Cmd {
 	return m.startOp("Moving", func(ctx context.Context, resolve fsops.ConflictResolver, progress func(fsops.Progress)) (string, error) {
 		res, err := fsops.Move(ctx, paths, dstDir, fsops.CopyOptions{Resolve: resolve, OnProgress: progress})
 		return resultSummary("Moved", res.Copied, res.Skipped, dstDir), err

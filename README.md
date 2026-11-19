@@ -36,7 +36,7 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Navigation | | Files | |
 |---|---|---|---|
 | `j` / `k` | down / up | `space` | copy to the other panel |
-| `h` / `l` | parent / open folder | `x` | move to the other panel |
+| `h` / `l` | parent / open folder | `x` | move to the other panel (asks first) |
 | `gg` / `G` | first / last entry | `d` | move to trash (asks first) |
 | `ctrl+d` / `ctrl+u` | half page down / up | `D` | delete permanently (asks first, defaults to Cancel) |
 | `tab` | switch panel | `r` | rename |

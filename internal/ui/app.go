@@ -227,7 +227,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case " ":
 		return m, m.copySelection()
 	case "x":
-		return m, m.moveSelection()
+		m.askMove()
 	case "d":
 		m.askTrash()
 	case "D":
