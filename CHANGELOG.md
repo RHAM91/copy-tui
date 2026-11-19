@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/RHAM91/copy-tui/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* open the same folder in both panels with = and ask before moving ([#12](https://github.com/RHAM91/copy-tui/issues/12)) ([5201386](https://github.com/RHAM91/copy-tui/commit/5201386ed5fd7e043c2db629ed54be6be236dc3b))
+
 ## [0.2.0](https://github.com/RHAM91/copy-tui/compare/v0.1.0...v0.2.0) (2026-11-18)
 
 
