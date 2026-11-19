@@ -272,7 +272,7 @@ func TestKeysAreIgnoredWhileBusy(t *testing.T) {
 func TestXMovesSelectionToOtherPanel(t *testing.T) {
 	m, root := twoPanels(t, "a.txt", "b.txt")
 
-	m = act(t, m, "j", "m", "m", "x")
+	m = act(t, m, "j", "m", "m", "x", "enter")
 	if m.Busy() {
 		t.Fatal("operation still running")
 	}
@@ -292,11 +292,39 @@ func TestXMovesSelectionToOtherPanel(t *testing.T) {
 	}
 }
 
+func TestXAsksBeforeMovingAndCancelKeepsEverything(t *testing.T) {
+	for _, cancel := range []string{"esc", "n"} {
+		m, root := twoPanels(t, "work/", "work/inner.txt")
+
+		m = act(t, m, "j", "x")
+		if !m.ConfirmPending() {
+			t.Fatal("x should ask before moving")
+		}
+		view := m.View()
+		for _, want := range []string{"Move 1 item", "work", "dst", "Move"} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("confirmation should show %q, got:\n%s", want, view)
+			}
+		}
+		m = act(t, m, cancel)
+
+		if m.ConfirmPending() || m.Busy() {
+			t.Fatalf("%s should close the confirmation without moving", cancel)
+		}
+		if _, err := os.Stat(filepath.Join(root, "work", "inner.txt")); err != nil {
+			t.Fatalf("%s: source was moved: %v", cancel, err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "dst", "work")); err == nil {
+			t.Fatalf("%s: folder reached the destination", cancel)
+		}
+	}
+}
+
 func TestXAsksOnConflict(t *testing.T) {
 	m, root := twoPanels(t, "a.txt")
 	writeTo(t, filepath.Join(root, "dst", "a.txt"), "old")
 
-	m = act(t, m, "j", "x")
+	m = act(t, m, "j", "x", "y")
 	if !m.ConflictPending() {
 		t.Fatal("expected conflict dialog")
 	}

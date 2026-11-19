@@ -20,6 +20,7 @@ var helpGroups = []helpGroup{
 		{"gg / G", "first / last entry"},
 		{"ctrl+d / ctrl+u", "half page down / up"},
 		{"tab", "switch panel"},
+		{"=", "same folder in both panels"},
 		{"/", "search in panel"},
 		{"n / N", "next / previous match"},
 		{".", "show / hide hidden files"},
@@ -31,7 +32,7 @@ var helpGroups = []helpGroup{
 	}},
 	{title: "Files", keys: [][2]string{
 		{"space", "copy to the other panel"},
-		{"x", "move to the other panel"},
+		{"x", "move to the other panel (asks first)"},
 		{"d", "move to trash"},
 		{"D", "delete permanently"},
 		{"r", "rename"},
