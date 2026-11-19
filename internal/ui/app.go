@@ -42,6 +42,8 @@ type Model struct {
 	confirm *confirmPrompt
 	// input is the open text prompt (rename, new folder), nil when none.
 	input *inputPrompt
+	// sync is the open "=" dialog, nil when closed.
+	sync *syncPrompt
 	// bookmarks is the open ctrl+b table, nil when closed.
 	bookmarks *bookmarkList
 	// helpOpen is true while the full "?" help is shown.
@@ -84,6 +86,8 @@ const (
 	modalOp
 	modalConfirm
 	modalInput
+	// modalSync is the "=" dialog that shows one folder in both panels.
+	modalSync
 	// modalBookmarks is the ctrl+b table and its broken-bookmark dialog. It
 	// sits under confirm and input, which it opens for delete and rename.
 	modalBookmarks
@@ -105,6 +109,8 @@ func (m Model) activeModal() modalKind {
 		return modalConfirm
 	case m.input != nil:
 		return modalInput
+	case m.sync != nil:
+		return modalSync
 	case m.bookmarks != nil:
 		return modalBookmarks
 	case m.helpOpen:
@@ -145,6 +151,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfirmKey(msg)
 		case modalInput:
 			return m.handleInputKey(msg)
+		case modalSync:
+			return m.handleSyncKey(msg)
 		case modalBookmarks:
 			return m.handleBookmarksKey(msg)
 		case modalHelp:
@@ -234,6 +242,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.askSaveBookmark()
 	case "ctrl+b":
 		m.openBookmarks()
+	case "=":
+		m.askSync()
 	}
 	return m, nil
 }
@@ -279,6 +289,8 @@ func (m Model) View() string {
 		view = overlay(view, m.confirm.view(), m.width, m.height)
 	case modalInput:
 		view = overlay(view, m.input.view(), m.width, m.height)
+	case modalSync:
+		view = overlay(view, m.sync.view(m.panels[0].dir, m.panels[1].dir), m.width, m.height)
 	case modalBookmarks:
 		view = overlay(view, m.bookmarks.view(m.width, m.height), m.width, m.height)
 	case modalHelp:

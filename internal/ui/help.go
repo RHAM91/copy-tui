@@ -20,6 +20,7 @@ var helpGroups = []helpGroup{
 		{"gg / G", "first / last entry"},
 		{"ctrl+d / ctrl+u", "half page down / up"},
 		{"tab", "switch panel"},
+		{"=", "same folder in both panels"},
 		{"/", "search in panel"},
 		{"n / N", "next / previous match"},
 		{".", "show / hide hidden files"},

@@ -16,6 +16,7 @@ func TestActiveModalPrecedence(t *testing.T) {
 		{"bookmarks over help", Model{bookmarks: &bookmarkList{}, helpOpen: true}, modalBookmarks},
 		{"input over bookmarks", Model{input: &inputPrompt{}, bookmarks: &bookmarkList{}}, modalInput},
 		{"confirm over bookmarks", Model{confirm: &confirmPrompt{}, bookmarks: &bookmarkList{}}, modalConfirm},
+		{"sync over help", Model{sync: &syncPrompt{}, helpOpen: true}, modalSync},
 		{"input over help", Model{input: &inputPrompt{}, helpOpen: true}, modalInput},
 		{"confirm over input", Model{confirm: &confirmPrompt{}, input: &inputPrompt{}}, modalConfirm},
 		{"operation over confirm", Model{op: &operation{}, confirm: &confirmPrompt{}}, modalOp},
