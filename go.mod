@@ -3,6 +3,7 @@ module github.com/RHAM91/copy-tui
 go 1.27.4
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10

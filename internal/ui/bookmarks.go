@@ -369,7 +369,7 @@ func (l *bookmarkList) view(width, height int) string {
 		// highlighted row spans the box without wrapping.
 		text += strings.Repeat(" ", max(inner-lipgloss.Width(text), 0))
 		if i == l.cursor {
-			lines = append(lines, styleCursor.Foreground(colText).Bold(true).Render(text))
+			lines = append(lines, styleCursor.Foreground(theme.Text).Bold(true).Render(text))
 		} else {
 			lines = append(lines, styleDialogText.Render(text))
 		}
@@ -402,7 +402,7 @@ func (p *brokenPrompt) view() string {
 		if i == p.choice {
 			style = styleOptionActive
 			if c == brokenDelete {
-				style = style.Background(colRed)
+				style = style.Background(theme.Error)
 			}
 		}
 		opts = append(opts, style.Render(brokenLabels[c]))

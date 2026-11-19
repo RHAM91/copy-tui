@@ -41,6 +41,7 @@ var helpGroups = []helpGroup{
 	{title: "Other", keys: [][2]string{
 		{"ctrl+s", "save both paths as a bookmark"},
 		{"ctrl+b", "bookmarks (enter open, r rename, d delete)"},
+		{"ctrl+t", "choose a theme"},
 		{"?", "toggle this help"},
 		{"q", "quit"},
 		{"--no-icons", "start without Nerd Font icons"},
