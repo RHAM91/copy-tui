@@ -139,8 +139,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		for i := range m.panels {
-			m.panels[i].setHeight(m.bodyHeight())
+		for i, size := range m.panelSizes() {
+			m.panels[i].setHeight(size.h)
 		}
 		return m, nil
 	case tea.KeyMsg:
@@ -267,18 +267,39 @@ func (m *Model) toggleHidden() {
 // help bars.
 func (m Model) bodyHeight() int { return max(m.height-2, 3) }
 
+// stackedBelow is the terminal width under which the panels are shown one
+// above the other instead of side by side.
+const stackedBelow = 100
+
+// stacked reports whether the panels are laid out one above the other.
+func (m Model) stacked() bool { return m.width < stackedBelow }
+
+type panelSize struct{ w, h int }
+
+// panelSizes returns the outer size of the left and right panels. Side by
+// side they split the width; stacked, the left panel takes the top half.
+func (m Model) panelSizes() [2]panelSize {
+	body := m.bodyHeight()
+	if m.stacked() {
+		top := body / 2
+		return [2]panelSize{{m.width, top}, {m.width, body - top}}
+	}
+	left := m.width / 2
+	return [2]panelSize{{left, body}, {m.width - left, body}}
+}
+
 // View implements tea.Model.
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}
-	leftW := m.width / 2
-	rightW := m.width - leftW
-
-	body := lipgloss.JoinHorizontal(lipgloss.Top,
-		m.panels[0].view(leftW, m.active == 0, m.opts),
-		m.panels[1].view(rightW, m.active == 1, m.opts),
-	)
+	sizes := m.panelSizes()
+	left := m.panels[0].view(sizes[0].w, m.active == 0, m.opts)
+	right := m.panels[1].view(sizes[1].w, m.active == 1, m.opts)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	if m.stacked() {
+		body = lipgloss.JoinVertical(lipgloss.Left, left, right)
+	}
 	view := lipgloss.JoinVertical(lipgloss.Left, body, m.statusView(), m.helpBarView())
 	switch m.activeModal() {
 	case modalConflict:

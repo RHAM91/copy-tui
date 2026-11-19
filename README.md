@@ -55,6 +55,7 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Copy semantics | Like `cp -a`: folders are copied recursively, symlinks are copied as links (never followed), permissions and modification times are kept. |
 | Name conflicts | A dialog offers **Overwrite**, **Skip** or **Rename** (`name (1).ext`), with an *Apply to all* toggle. Overwriting a folder merges its contents. |
 | Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
+| Layout | The panels sit side by side; when the terminal is narrower than 100 columns they stack, the left panel on top and the right one below. |
 | Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
 | Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
 | Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` (or an Administrator terminal on Windows) if it lives in a system folder. Builds from source (`dev`) do not update. |
