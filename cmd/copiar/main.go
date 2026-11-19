@@ -16,6 +16,7 @@ import (
 	"github.com/creativeprojects/go-selfupdate"
 
 	"github.com/RHAM91/copy-tui/internal/bookmarks"
+	prefs "github.com/RHAM91/copy-tui/internal/config"
 	"github.com/RHAM91/copy-tui/internal/ui"
 	"github.com/RHAM91/copy-tui/internal/update"
 )
@@ -175,6 +176,9 @@ func main() {
 	// then explain why in the status bar.
 	if path, err := bookmarks.DefaultPath(); err == nil {
 		cfg.ui.Bookmarks = bookmarks.NewStore(path)
+	}
+	if path, err := prefs.DefaultPath(); err == nil {
+		cfg.ui.Config = prefs.NewStore(path)
 	}
 	p := tea.NewProgram(ui.New(cwd, cfg.ui), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

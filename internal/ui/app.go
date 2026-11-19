@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/RHAM91/copy-tui/internal/bookmarks"
+	"github.com/RHAM91/copy-tui/internal/config"
 )
 
 // Options configures the UI.
@@ -21,6 +22,9 @@ type Options struct {
 	CheckUpdate func(context.Context) (string, error)
 	// Bookmarks stores the ctrl+s / ctrl+b bookmarks; nil disables them.
 	Bookmarks *bookmarks.Store
+	// Config holds the saved theme; nil uses the default theme and the
+	// ctrl+t choice lasts only until copiar exits.
+	Config *config.Store
 }
 
 // Model is the root Bubble Tea model: two panels and the active one.
@@ -42,6 +46,8 @@ type Model struct {
 	confirm *confirmPrompt
 	// input is the open text prompt (rename, new folder), nil when none.
 	input *inputPrompt
+	// themes is the open ctrl+t theme list, nil when closed.
+	themes *themePicker
 	// sync is the open "=" dialog, nil when closed.
 	sync *syncPrompt
 	// bookmarks is the open ctrl+b table, nil when closed.
@@ -57,10 +63,12 @@ type Model struct {
 
 // New creates the UI with both panels opened in startDir.
 func New(startDir string, opts Options) Model {
-	return Model{
+	m := Model{
 		panels: [2]Panel{newPanel(startDir, false), newPanel(startDir, false)},
 		opts:   opts,
 	}
+	m.loadTheme()
+	return m
 }
 
 // Panel returns the panel at index i (0 = left, 1 = right).
@@ -86,6 +94,8 @@ const (
 	modalOp
 	modalConfirm
 	modalInput
+	// modalTheme is the ctrl+t theme list.
+	modalTheme
 	// modalSync is the "=" dialog that shows one folder in both panels.
 	modalSync
 	// modalBookmarks is the ctrl+b table and its broken-bookmark dialog. It
@@ -109,6 +119,8 @@ func (m Model) activeModal() modalKind {
 		return modalConfirm
 	case m.input != nil:
 		return modalInput
+	case m.themes != nil:
+		return modalTheme
 	case m.sync != nil:
 		return modalSync
 	case m.bookmarks != nil:
@@ -151,6 +163,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfirmKey(msg)
 		case modalInput:
 			return m.handleInputKey(msg)
+		case modalTheme:
+			return m.handleThemeKey(msg)
 		case modalSync:
 			return m.handleSyncKey(msg)
 		case modalBookmarks:
@@ -244,6 +258,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openBookmarks()
 	case "=":
 		m.askSync()
+	case "ctrl+t":
+		m.openThemePicker()
 	}
 	return m, nil
 }
@@ -310,6 +326,8 @@ func (m Model) View() string {
 		view = overlay(view, m.confirm.view(), m.width, m.height)
 	case modalInput:
 		view = overlay(view, m.input.view(), m.width, m.height)
+	case modalTheme:
+		view = overlay(view, m.themes.view(), m.width, m.height)
 	case modalSync:
 		view = overlay(view, m.sync.view(m.panels[0].dir, m.panels[1].dir), m.width, m.height)
 	case modalBookmarks:

@@ -45,6 +45,7 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | `ctrl+s` | save both panel paths as a bookmark | `q` | quit |
 | `ctrl+b` | open the bookmark table | | |
 | `=` | same folder in both panels | | |
+| `ctrl+t` | choose a theme | | |
 
 **Selection:** `m` marks the entry and moves down, `v` selects a range (press `v` again to keep it), `esc` clears. Copy, move and delete apply to the selection, or to the entry under the cursor when nothing is selected.
 
@@ -56,6 +57,7 @@ Press <kbd>?</kbd> inside the app for the full keymap.
 | Name conflicts | A dialog offers **Overwrite**, **Skip** or **Rename** (`name (1).ext`), with an *Apply to all* toggle. Overwriting a folder merges its contents. |
 | Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
 | Layout | The panels sit side by side; when the terminal is narrower than 100 columns they stack, the left panel on top and the right one below. |
+| Themes | `ctrl+t` lists **Catppuccin Mocha** (default), **Kanagawa Wave**, **Kanagawa Dragon** and **Tokyo Night**. Moving through the list previews each theme; `enter` keeps and saves it, `esc` goes back to the previous one. Themes color text, borders and highlights and keep your terminal's background. The choice is saved as `theme = "kanagawa-wave"` in `config.toml`, next to the bookmarks (`~/.config/copiar/config.toml` on Linux). An unknown theme or an unreadable file falls back to the default with a message, and a corrupt file is never overwritten. |
 | Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
 | Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
 | Updates | When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown when offline). `copiar update` downloads the release for your platform, verifies it against `checksums.txt` and replaces the binary; use `sudo copiar update` (or an Administrator terminal on Windows) if it lives in a system folder. Builds from source (`dev`) do not update. |
@@ -79,6 +81,7 @@ go run ./cmd/copiar          # run from source
 | `cmd/copiar` | flags and program start |
 | `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI; OS-specific code in `*_linux.go`, `*_darwin.go`, `*_windows.go`, `*_unix.go` |
 | `internal/bookmarks` | named left/right folder pairs saved as JSON in the user config directory |
+| `internal/config` | preferences (the theme) in `config.toml` in the user config directory |
 | `internal/update` | release check and self-update (checksum verified) |
 | `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |
 
