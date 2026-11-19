@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/RHAM91/copy-tui/compare/v0.3.0...v0.4.0) (2026-11-19)
+
+
+### Features
+
+* stack panels on narrow terminals and choose a theme with ctrl+t ([#14](https://github.com/RHAM91/copy-tui/issues/14)) ([7012ada](https://github.com/RHAM91/copy-tui/commit/7012ada871ec2ef98905ea191ede771477ab3953))
+
 ## [0.3.0](https://github.com/RHAM91/copy-tui/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 
