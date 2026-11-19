@@ -12,10 +12,15 @@ import (
 
 const dialogWidth = 60
 
-var progressBar = progress.New(
-	progress.WithGradient(string(colMauve), string(colBlue)),
-	progress.WithWidth(dialogWidth-4),
-)
+// progressBar is rebuilt by applyTheme with the theme's gradient.
+var progressBar progress.Model
+
+func newProgressBar(th Theme) progress.Model {
+	return progress.New(
+		progress.WithGradient(string(th.Accent), string(th.Dir)),
+		progress.WithWidth(dialogWidth-4),
+	)
+}
 
 // progressView renders the modal shown while an operation runs.
 func (op *operation) progressView() string {

@@ -77,7 +77,7 @@ func (c *confirmPrompt) view() string {
 	if c.choice == 0 {
 		yes = styleOptionActive
 		if c.danger {
-			yes = yes.Background(colRed)
+			yes = yes.Background(theme.Error)
 		}
 	} else {
 		no = styleOptionActive
