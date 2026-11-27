@@ -57,3 +57,26 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to the update catalog
+        # The catalog needs raw binaries (not archives) and publishes a
+        # version only when every enabled target is uploaded and signed.
+        # Keep this target list identical to the targets enabled in the panel.
+        env:
+          CATALOG_URL: ${{ secrets.CATALOG_URL }}
+          CATALOG_UPLOAD_TOKEN: ${{ secrets.CATALOG_UPLOAD_TOKEN }}
+          CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
+          TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          mkdir -p catalog-dist
+          specs=()
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            goos="${target%/*}"; goarch="${target#*/}"; ext=""
+            [ "$goos" = windows ] && ext=".exe"
+            out="catalog-dist/copiar-${goos}-${goarch}${ext}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${version}" -o "$out" ./cmd/copiar
+            specs+=("${target}=${out}")
+          done
+          ./scripts/publish-release.sh copiar-tui "$version" "${specs[@]}"

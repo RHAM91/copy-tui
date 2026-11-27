@@ -1,260 +1,269 @@
 package update
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
-	"github.com/creativeprojects/go-selfupdate"
+	"github.com/RHAM91/copy-tui/internal/updater"
 )
 
-// fakeAsset and fakeRelease implement the selfupdate source interfaces.
-type fakeAsset struct {
-	id   int64
-	name string
-	data []byte
+type catalog struct {
+	t        *testing.T
+	priv     ed25519.PrivateKey
+	pub      string
+	version  string
+	binary   []byte
+	force    bool
+	status   int // overrides /version when non-zero
+	tamper   bool
+	requests int
 }
 
-func (a fakeAsset) GetID() int64                  { return a.id }
-func (a fakeAsset) GetName() string               { return a.name }
-func (a fakeAsset) GetSize() int                  { return len(a.data) }
-func (a fakeAsset) GetBrowserDownloadURL() string { return "https://example.invalid/" + a.name }
-
-type fakeRelease struct {
-	tag    string
-	assets []fakeAsset
-}
-
-func (r fakeRelease) GetID() int64              { return 1 }
-func (r fakeRelease) GetTagName() string        { return r.tag }
-func (r fakeRelease) GetDraft() bool            { return false }
-func (r fakeRelease) GetPrerelease() bool       { return false }
-func (r fakeRelease) GetPublishedAt() time.Time { return time.Now() }
-func (r fakeRelease) GetReleaseNotes() string   { return "" }
-func (r fakeRelease) GetName() string           { return r.tag }
-func (r fakeRelease) GetURL() string            { return "https://example.invalid/" + r.tag }
-func (r fakeRelease) GetAssets() []selfupdate.SourceAsset {
-	out := make([]selfupdate.SourceAsset, len(r.assets))
-	for i, a := range r.assets {
-		out[i] = a
-	}
-	return out
-}
-
-type fakeSource struct {
-	releases []fakeRelease
-	err      error
-}
-
-func (s fakeSource) ListReleases(context.Context, selfupdate.Repository) ([]selfupdate.SourceRelease, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	out := make([]selfupdate.SourceRelease, len(s.releases))
-	for i, r := range s.releases {
-		out[i] = r
-	}
-	return out, nil
-}
-
-func (s fakeSource) DownloadReleaseAsset(_ context.Context, _ *selfupdate.Release, id int64) (io.ReadCloser, error) {
-	for _, r := range s.releases {
-		for _, a := range r.assets {
-			if a.id == id {
-				return io.NopCloser(bytes.NewReader(a.data)), nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("asset %d not found", id)
-}
-
-// tarGz builds a GoReleaser-like archive holding the copiar binary.
-func tarGz(t *testing.T, binary []byte) []byte {
+func newCatalog(t *testing.T, version string, binary []byte) (*catalog, *Service) {
 	t.Helper()
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gz)
-	for name, data := range map[string][]byte{"copiar": binary, "README.md": []byte("readme")} {
-		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(data))}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tw.Write(data); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.Bytes()
-}
-
-// release returns a release for the running platform whose archive contains
-// binary; tamper corrupts the checksum.
-func release(t *testing.T, version string, binary []byte, tamper bool) fakeRelease {
-	t.Helper()
-	archive := tarGz(t, binary)
-	name := fmt.Sprintf("copiar_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
-	sum := sha256.Sum256(archive)
-	if tamper {
-		sum[0] ^= 0xff
-	}
-	checksums := fmt.Sprintf("%x  %s\n", sum, name)
-	return fakeRelease{tag: "v" + version, assets: []fakeAsset{
-		{id: 10, name: name, data: archive},
-		{id: 11, name: "checksums.txt", data: []byte(checksums)},
-	}}
-}
-
-func newService(t *testing.T, src fakeSource) *Service {
-	t.Helper()
-	s, err := New(src)
+	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s
+	c := &catalog{t: t, priv: priv, pub: base64.StdEncoding.EncodeToString(pub), version: version, binary: binary}
+	srv := httptest.NewServer(c)
+	t.Cleanup(srv.Close)
+	return c, NewWithConfig(updater.Config{BaseURL: srv.URL, App: App, PublicKey: c.pub, Token: "cat_dl_test"})
+}
+
+func (c *catalog) sum() string {
+	h := sha256.Sum256(c.binary)
+	return hex.EncodeToString(h[:])
+}
+
+func (c *catalog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c.requests++
+	if r.Header.Get("Authorization") != "Bearer cat_dl_test" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	switch r.URL.Path {
+	case "/api/" + App + "/version":
+		if c.status != 0 {
+			w.WriteHeader(c.status)
+			return
+		}
+		sig := ed25519.Sign(c.priv, updater.SignedMessage(App, c.version, runtime.GOOS, runtime.GOARCH, c.sum()))
+		_ = json.NewEncoder(w).Encode(updater.Release{
+			App: App, Version: c.version, OS: runtime.GOOS, Arch: runtime.GOARCH,
+			SHA256: c.sum(), Size: int64(len(c.binary)),
+			Signature: base64.StdEncoding.EncodeToString(sig), Force: c.force,
+		})
+	case "/api/" + App + "/download":
+		if got := r.URL.Query().Get("version"); got != c.version {
+			c.t.Errorf("download asked for version %q, want the pinned %q", got, c.version)
+		}
+		body := c.binary
+		if c.tamper {
+			body = append([]byte(nil), c.binary...)
+			body[0] ^= 0xff
+		}
+		w.Header().Set("X-Version", c.version)
+		_, _ = w.Write(body)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+	}
 }
 
 func fakeExe(t *testing.T) string {
 	t.Helper()
 	exe := filepath.Join(t.TempDir(), "copiar")
-	if err := os.WriteFile(exe, []byte("old binary"), 0o755); err != nil {
+	if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return exe
 }
 
+func read(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func leftovers(t *testing.T, dir string) int {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(entries)
+}
+
 func TestCheck(t *testing.T) {
-	src := fakeSource{releases: []fakeRelease{release(t, "0.2.0", []byte("new"), false)}}
 	tests := []struct {
-		name       string
-		current    string
-		wantLatest string
-		wantNewer  bool
-		wantErr    error
+		name, remote, current string
+		force                 bool
+		wantNewer             bool
+		wantLatest            string
 	}{
-		{name: "older version sees the update", current: "0.1.0", wantLatest: "0.2.0", wantNewer: true},
-		{name: "v prefix is accepted", current: "v0.1.0", wantLatest: "0.2.0", wantNewer: true},
-		{name: "same version is up to date", current: "0.2.0", wantLatest: "0.2.0", wantNewer: false},
-		{name: "newer local version is up to date", current: "0.3.0", wantLatest: "0.2.0", wantNewer: false},
-		{name: "development build cannot be compared", current: "dev", wantErr: ErrDevBuild},
-		{name: "snapshot build cannot be compared", current: "0.0.0-SNAPSHOT-20fe5c9", wantErr: ErrDevBuild},
+		{name: "newer release", remote: "0.2.0", current: "0.1.0", wantNewer: true, wantLatest: "0.2.0"},
+		{name: "semver, not string, order", remote: "1.10.0", current: "1.9.0", wantNewer: true, wantLatest: "1.10.0"},
+		{name: "same version", remote: "0.1.0", current: "0.1.0", wantLatest: "0.1.0"},
+		{name: "same version even when forced", remote: "0.1.0", current: "0.1.0", force: true, wantLatest: "0.1.0"},
+		{name: "older without force is ignored", remote: "0.1.0", current: "0.2.0", wantLatest: "0.2.0"},
+		{name: "older with force is a rollback", remote: "0.1.0", current: "0.2.0", force: true, wantNewer: true, wantLatest: "0.1.0"},
+		{name: "leading v on the running version", remote: "0.1.0", current: "v0.1.0", wantLatest: "0.1.0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			latest, newer, err := newService(t, src).Check(context.Background(), tt.current)
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("err = %v, want %v", err, tt.wantErr)
-				}
-				return
-			}
+			c, svc := newCatalog(t, tt.remote, []byte("bin"))
+			c.force = tt.force
+			latest, newer, err := svc.Check(context.Background(), tt.current)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if latest != tt.wantLatest || newer != tt.wantNewer {
-				t.Fatalf("Check = (%q, %v), want (%q, %v)", latest, newer, tt.wantLatest, tt.wantNewer)
+				t.Fatalf("Check() = (%q, %v), want (%q, %v)", latest, newer, tt.wantLatest, tt.wantNewer)
 			}
 		})
 	}
 }
 
-func TestCheckWithoutReleases(t *testing.T) {
-	_, _, err := newService(t, fakeSource{}).Check(context.Background(), "0.1.0")
-	if !errors.Is(err, ErrNoRelease) {
-		t.Fatalf("err = %v, want ErrNoRelease", err)
+func TestCheckTreatsMissingOrBlockedChannelAsNoUpdate(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusServiceUnavailable} {
+		c, svc := newCatalog(t, "9.9.9", []byte("bin"))
+		c.status = status
+		latest, newer, err := svc.Check(context.Background(), "0.1.0")
+		if err != nil || newer || latest != "0.1.0" {
+			t.Fatalf("HTTP %d: Check() = (%q, %v, %v), want (\"0.1.0\", false, nil)", status, latest, newer, err)
+		}
 	}
 }
 
-func TestCheckPropagatesSourceErrors(t *testing.T) {
-	boom := errors.New("network down")
-	_, _, err := newService(t, fakeSource{err: boom}).Check(context.Background(), "0.1.0")
-	if err == nil {
-		t.Fatal("expected error")
+func TestCheckReportsRejectedToken(t *testing.T) {
+	_, svc := newCatalog(t, "0.2.0", []byte("bin"))
+	svc.cfg.Token = "cat_dl_wrong"
+	if _, _, err := svc.Check(context.Background(), "0.1.0"); !errors.Is(err, updater.ErrUnauthorized) {
+		t.Fatalf("err = %v, want ErrUnauthorized", err)
+	}
+}
+
+func TestWithoutTokenNoRequestIsMade(t *testing.T) {
+	c, svc := newCatalog(t, "0.2.0", []byte("bin"))
+	svc.cfg.Token = ""
+	if _, _, err := svc.Check(context.Background(), "0.1.0"); !errors.Is(err, ErrNoToken) {
+		t.Fatalf("err = %v, want ErrNoToken", err)
+	}
+	if _, _, err := svc.Apply(context.Background(), "0.1.0", fakeExe(t)); !errors.Is(err, ErrNoToken) {
+		t.Fatalf("Apply err = %v, want ErrNoToken", err)
+	}
+	if c.requests != 0 {
+		t.Fatalf("%d requests made without a token", c.requests)
 	}
 }
 
 func TestApplyReplacesExecutable(t *testing.T) {
-	src := fakeSource{releases: []fakeRelease{release(t, "0.2.0", []byte("new binary"), false)}}
+	_, svc := newCatalog(t, "0.2.0", []byte("new binary"))
 	exe := fakeExe(t)
+	version, updated, err := svc.Apply(context.Background(), "0.1.0", exe)
+	if err != nil || !updated || version != "0.2.0" {
+		t.Fatalf("Apply() = (%q, %v, %v)", version, updated, err)
+	}
+	if got := read(t, exe); got != "new binary" {
+		t.Fatalf("executable = %q, want the new binary", got)
+	}
+	if info, _ := os.Stat(exe); runtime.GOOS != "windows" && info.Mode().Perm() != 0o755 {
+		t.Fatalf("mode = %v, want 0755", info.Mode().Perm())
+	}
+}
 
-	version, updated, err := newService(t, src).Apply(context.Background(), "0.1.0", exe)
-	if err != nil {
-		t.Fatal(err)
+func TestApplyInstallsForcedRollback(t *testing.T) {
+	c, svc := newCatalog(t, "0.1.0", []byte("old release"))
+	c.force = true
+	exe := fakeExe(t)
+	if _, updated, err := svc.Apply(context.Background(), "0.2.0", exe); err != nil || !updated {
+		t.Fatalf("Apply() updated=%v err=%v", updated, err)
 	}
-	if !updated || version != "0.2.0" {
-		t.Fatalf("Apply = (%q, %v), want (0.2.0, true)", version, updated)
-	}
-	got, _ := os.ReadFile(exe)
-	if string(got) != "new binary" {
-		t.Fatalf("executable content = %q", got)
-	}
-	info, _ := os.Stat(exe)
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0 {
-		t.Fatalf("updated executable is not executable: %v", info.Mode())
+	if got := read(t, exe); got != "old release" {
+		t.Fatalf("executable = %q", got)
 	}
 }
 
 func TestApplyDoesNothingWhenUpToDate(t *testing.T) {
-	src := fakeSource{releases: []fakeRelease{release(t, "0.2.0", []byte("new binary"), false)}}
+	_, svc := newCatalog(t, "0.1.0", []byte("same"))
 	exe := fakeExe(t)
-
-	version, updated, err := newService(t, src).Apply(context.Background(), "0.2.0", exe)
-	if err != nil {
-		t.Fatal(err)
+	version, updated, err := svc.Apply(context.Background(), "0.1.0", exe)
+	if err != nil || updated || version != "0.1.0" {
+		t.Fatalf("Apply() = (%q, %v, %v)", version, updated, err)
 	}
-	if updated || version != "0.2.0" {
-		t.Fatalf("Apply = (%q, %v), want (0.2.0, false)", version, updated)
-	}
-	if got, _ := os.ReadFile(exe); string(got) != "old binary" {
-		t.Fatalf("executable changed: %q", got)
+	if got := read(t, exe); got != "old" {
+		t.Fatalf("executable changed to %q", got)
 	}
 }
 
-func TestApplyRejectsChecksumMismatch(t *testing.T) {
-	src := fakeSource{releases: []fakeRelease{release(t, "0.2.0", []byte("evil binary"), true)}}
+func TestApplyRejectsTamperedBinaryAndLeavesNoTempFile(t *testing.T) {
+	c, svc := newCatalog(t, "0.2.0", []byte("new binary"))
+	c.tamper = true
 	exe := fakeExe(t)
-
-	if _, _, err := newService(t, src).Apply(context.Background(), "0.1.0", exe); err == nil {
-		t.Fatal("expected checksum error")
+	if _, updated, err := svc.Apply(context.Background(), "0.1.0", exe); err == nil || updated {
+		t.Fatalf("Apply() err=%v updated=%v, want a rejection", err, updated)
 	}
-	if got, _ := os.ReadFile(exe); string(got) != "old binary" {
-		t.Fatalf("executable replaced despite bad checksum: %q", got)
+	if got := read(t, exe); got != "old" {
+		t.Fatalf("executable changed to %q", got)
+	}
+	if n := leftovers(t, filepath.Dir(exe)); n != 1 {
+		t.Fatalf("%d files in the executable directory, want only the executable", n)
 	}
 }
 
-func TestApplyRejectsReleaseWithoutChecksums(t *testing.T) {
-	rel := release(t, "0.2.0", []byte("unverified"), false)
-	rel.assets = rel.assets[:1]
+func TestApplyRejectsSignatureFromAnotherKey(t *testing.T) {
+	_, svc := newCatalog(t, "0.2.0", []byte("new binary"))
+	other, _, _ := ed25519.GenerateKey(nil)
+	svc.cfg.PublicKey = base64.StdEncoding.EncodeToString(other)
 	exe := fakeExe(t)
-
-	if _, _, err := newService(t, fakeSource{releases: []fakeRelease{rel}}).Apply(context.Background(), "0.1.0", exe); err == nil {
-		t.Fatal("expected error for a release without checksums.txt")
+	if _, updated, err := svc.Apply(context.Background(), "0.1.0", exe); err == nil || updated {
+		t.Fatalf("Apply() err=%v updated=%v, want a rejection", err, updated)
 	}
-	if got, _ := os.ReadFile(exe); string(got) != "old binary" {
-		t.Fatalf("executable replaced without checksum: %q", got)
+	if got := read(t, exe); got != "old" {
+		t.Fatalf("executable changed to %q", got)
+	}
+	if n := leftovers(t, filepath.Dir(exe)); n != 1 {
+		t.Fatalf("%d files left behind", n)
 	}
 }
 
-func TestApplyRefusesDevelopmentBuild(t *testing.T) {
-	src := fakeSource{releases: []fakeRelease{release(t, "0.2.0", []byte("new"), false)}}
-	exe := fakeExe(t)
-	if _, _, err := newService(t, src).Apply(context.Background(), "dev", exe); !errors.Is(err, ErrDevBuild) {
-		t.Fatalf("err = %v, want ErrDevBuild", err)
+func TestRefusesDevelopmentBuilds(t *testing.T) {
+	c, svc := newCatalog(t, "0.2.0", []byte("bin"))
+	for _, v := range []string{"dev", "0.2.0-SNAPSHOT-abc123", ""} {
+		if _, _, err := svc.Check(context.Background(), v); !errors.Is(err, ErrDevBuild) {
+			t.Fatalf("Check(%q) err = %v, want ErrDevBuild", v, err)
+		}
+		if _, _, err := svc.Apply(context.Background(), v, fakeExe(t)); !errors.Is(err, ErrDevBuild) {
+			t.Fatalf("Apply(%q) err = %v, want ErrDevBuild", v, err)
+		}
 	}
-	if got, _ := os.ReadFile(exe); string(got) != "old binary" {
-		t.Fatal("development build was replaced")
+	if c.requests != 0 {
+		t.Fatalf("%d requests made for development builds", c.requests)
+	}
+}
+
+func TestOfficialConfigHasEmbeddedKey(t *testing.T) {
+	pub, err := base64.StdEncoding.DecodeString(PublicKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		t.Fatalf("PublicKey is not a valid Ed25519 key: %v", err)
+	}
+	t.Setenv(TokenEnv, "cat_dl_x")
+	svc := New()
+	if svc.cfg.BaseURL != CatalogURL || svc.cfg.App != App || svc.cfg.PublicKey != PublicKey || svc.cfg.Token != "cat_dl_x" {
+		t.Fatalf("unexpected config %+v", svc.cfg)
 	}
 }

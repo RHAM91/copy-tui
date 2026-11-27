@@ -10,15 +10,16 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/creativeprojects/go-selfupdate"
 
 	"github.com/RHAM91/copy-tui/internal/bookmarks"
 	prefs "github.com/RHAM91/copy-tui/internal/config"
 	"github.com/RHAM91/copy-tui/internal/ui"
 	"github.com/RHAM91/copy-tui/internal/update"
+	"github.com/RHAM91/copy-tui/internal/updater"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -54,21 +55,26 @@ func parseArgs(args []string) (config, error) {
 
 func versionString() string { return "copiar " + version }
 
-// updater is the part of update.Service used here, so tests can fake it.
-type updater interface {
+// updateService is the part of update.Service used here, so tests can fake it.
+type updateService interface {
 	Check(ctx context.Context, current string) (latest string, newer bool, err error)
 	Apply(ctx context.Context, current, exePath string) (version string, updated bool, err error)
 }
 
 // runUpdate replaces the executable with the latest release and returns the
 // process exit code.
-func runUpdate(ctx context.Context, up updater, current, exePath string, out io.Writer) int {
+func runUpdate(ctx context.Context, up updateService, current, exePath string, out io.Writer) int {
 	fmt.Fprintln(out, "Checking for updates…")
 	latest, updated, err := up.Apply(ctx, current, exePath)
 	switch {
 	case errors.Is(err, update.ErrDevBuild):
 		fmt.Fprintf(out, "copiar update: %v\n", err)
-		fmt.Fprintf(out, "Download a release from https://github.com/%s/releases\n", update.Repository)
+		return 1
+	case errors.Is(err, update.ErrNoToken):
+		fmt.Fprintf(out, "copiar update: %v\n", err)
+		return 1
+	case errors.Is(err, updater.ErrUnauthorized):
+		fmt.Fprintf(out, "copiar update: %v; check %s\n", err, update.TokenEnv)
 		return 1
 	case errors.Is(err, fs.ErrPermission):
 		fmt.Fprintf(out, "copiar update: cannot replace %s: %v\n", exePath, err)
@@ -87,7 +93,7 @@ func runUpdate(ctx context.Context, up updater, current, exePath string, out io.
 
 // startupCheck returns the background check shown in the UI, or nil for
 // development builds, which have no version to compare.
-func startupCheck(up updater, current string) func(context.Context) (string, error) {
+func startupCheck(up updateService, current string) func(context.Context) (string, error) {
 	if current == "dev" {
 		return nil
 	}
@@ -108,6 +114,16 @@ func permissionHint(goos string) string {
 	return "Try again with: sudo copiar update"
 }
 
+// executablePath returns the real path of the running executable, resolving
+// symlinks so the update replaces the file and not the link.
+func executablePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(exe)
+}
+
 func trimV(v string) string {
 	if len(v) > 0 && v[0] == 'v' {
 		return v[1:]
@@ -121,7 +137,7 @@ const usage = `Usage: copiar [--no-icons] [--version]
 Dual-pane file manager with Vim keys. Both panels open in the current directory.
 
 Commands:
-  update       download and install the latest release (checksum verified)
+  update       download and install the latest release (signature verified)
 
 Flags:
   --no-icons   disable Nerd Font icons (use when your terminal font lacks them)
@@ -146,15 +162,12 @@ func main() {
 		return
 	}
 
-	svc, err := update.New(nil)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "copiar: %v\n", err)
-		os.Exit(1)
-	}
+	updater.CleanupOld()
+	svc := update.New()
 
 	if cfg.command == "update" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		exe, err := selfupdate.ExecutablePath()
+		exe, err := executablePath()
 		if err != nil {
 			stop()
 			fmt.Fprintf(os.Stderr, "copiar update: cannot locate the executable: %v\n", err)

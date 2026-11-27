@@ -1,110 +1,121 @@
-// Package update checks GitHub releases for a newer copiar and replaces the
-// running executable with it, after verifying the release checksums.
+// Package update checks the private update catalog for a newer copiar and
+// replaces the running executable with it, after verifying its size, SHA-256
+// and Ed25519 signature against the public key compiled into the binary.
 package update
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
-	"github.com/creativeprojects/go-selfupdate"
+	"github.com/RHAM91/copy-tui/internal/updater"
 )
 
-// Repository is the GitHub repository whose releases are used.
-const Repository = "RHAM91/copy-tui"
-
-// checksumsFile is the checksum list GoReleaser attaches to every release.
-const checksumsFile = "checksums.txt"
+const (
+	// CatalogURL is the base URL of the update catalog.
+	CatalogURL = "https://updates.r0ma.cloud"
+	// App is the name the app is registered under in the catalog.
+	App = "copiar-tui"
+	// PublicKey is the app's Ed25519 public key (standard base64). It is
+	// compiled in on purpose: it must never come from the network or the
+	// environment.
+	PublicKey = "C05OkZIYpmPm2CpIr+bgzU11piMBdFua7YaVne+eLPo="
+	// TokenEnv names the environment variable holding the download token.
+	TokenEnv = "COPIAR_TUI_UPDATE_TOKEN"
+)
 
 var (
 	// ErrDevBuild is returned for builds without a release version (local
 	// "dev" or GoReleaser snapshot builds), which cannot be compared.
 	ErrDevBuild = errors.New("development build: install a release to enable updates")
-	// ErrNoRelease is returned when no release exists for this platform.
-	ErrNoRelease = errors.New("no release found for this platform")
+	// ErrNoToken is returned when the download token is not configured.
+	ErrNoToken = errors.New("updates are disabled: set " + TokenEnv + " to your download token")
 )
 
 // Service checks for and applies updates.
 type Service struct {
-	updater *selfupdate.Updater
-	repo    selfupdate.Repository
+	cfg updater.Config
 }
 
-// New creates a Service reading releases from source; a nil source uses the
-// public GitHub API.
-func New(source selfupdate.Source) (*Service, error) {
-	if source == nil {
-		gh, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{})
-		if err != nil {
-			return nil, err
-		}
-		source = gh
-	}
-	up, err := selfupdate.NewUpdater(selfupdate.Config{
-		Source: source,
-		// Every download is verified against checksums.txt; a release
-		// without it, or with a mismatching sum, is rejected.
-		Validator: &selfupdate.ChecksumValidator{UniqueFilename: checksumsFile},
+// New creates a Service for the official catalog, reading the download token
+// from the environment.
+func New() *Service {
+	return NewWithConfig(updater.Config{
+		BaseURL:   CatalogURL,
+		App:       App,
+		PublicKey: PublicKey,
+		Token:     os.Getenv(TokenEnv),
 	})
-	if err != nil {
+}
+
+// NewWithConfig creates a Service with an explicit catalog configuration.
+func NewWithConfig(cfg updater.Config) *Service { return &Service{cfg: cfg} }
+
+// releaseVersion rejects development builds, which have no comparable version.
+func releaseVersion(current string) error {
+	if strings.Contains(current, "SNAPSHOT") {
+		return fmt.Errorf("%w (version %q)", ErrDevBuild, current)
+	}
+	if _, err := updater.CompareVersions(current, current); err != nil {
+		return fmt.Errorf("%w (version %q)", ErrDevBuild, current)
+	}
+	return nil
+}
+
+func (s *Service) latest(ctx context.Context, current string) (*updater.Release, error) {
+	if err := releaseVersion(current); err != nil {
 		return nil, err
 	}
-	return &Service{updater: up, repo: selfupdate.ParseSlug(Repository)}, nil
+	if s.cfg.Token == "" {
+		return nil, ErrNoToken
+	}
+	cfg := s.cfg
+	cfg.CurrentVersion = current
+	rel, err := updater.Check(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("checking for updates: %w", err)
+	}
+	return rel, nil
 }
 
-// releaseVersion parses current, rejecting development builds.
-func releaseVersion(current string) (*semver.Version, error) {
-	v, err := semver.NewVersion(strings.TrimPrefix(current, "v"))
-	if err != nil || strings.HasPrefix(v.Prerelease(), "SNAPSHOT") {
-		return nil, fmt.Errorf("%w (version %q)", ErrDevBuild, current)
-	}
-	return v, nil
-}
-
-func (s *Service) latest(ctx context.Context, current string) (*selfupdate.Release, bool, error) {
-	cur, err := releaseVersion(current)
-	if err != nil {
-		return nil, false, err
-	}
-	rel, found, err := s.updater.DetectLatest(ctx, s.repo)
-	if err != nil {
-		return nil, false, fmt.Errorf("checking for updates: %w", err)
-	}
-	if !found {
-		return nil, false, ErrNoRelease
-	}
-	latest, err := semver.NewVersion(rel.Version())
-	if err != nil {
-		return nil, false, fmt.Errorf("invalid release version %q: %w", rel.Version(), err)
-	}
-	return rel, latest.GreaterThan(cur), nil
-}
-
-// Check returns the latest released version and whether it is newer than
-// current.
+// Check returns the version to install and whether it differs from current.
+// When there is nothing to install it returns current.
 func (s *Service) Check(ctx context.Context, current string) (latest string, newer bool, err error) {
-	rel, newer, err := s.latest(ctx, current)
+	rel, err := s.latest(ctx, current)
 	if err != nil {
 		return "", false, err
 	}
-	return rel.Version(), newer, nil
+	if rel == nil {
+		return trimV(current), false, nil
+	}
+	return rel.Version, true, nil
 }
 
-// Apply replaces the executable at exePath with the latest release when it
-// is newer than current. It returns the latest version and whether the
-// executable was replaced.
+// Apply replaces the executable at exePath with the release published in the
+// catalog when it is newer than current (or forced by the owner). It returns
+// the resulting version and whether the executable was replaced.
 func (s *Service) Apply(ctx context.Context, current, exePath string) (version string, updated bool, err error) {
-	rel, newer, err := s.latest(ctx, current)
+	rel, err := s.latest(ctx, current)
 	if err != nil {
 		return "", false, err
 	}
-	if !newer {
-		return rel.Version(), false, nil
+	if rel == nil {
+		return trimV(current), false, nil
 	}
-	if err := s.updater.UpdateTo(ctx, rel, exePath); err != nil {
-		return rel.Version(), false, fmt.Errorf("installing %s: %w", rel.Version(), err)
+	cfg := s.cfg
+	cfg.CurrentVersion = current
+	path, err := updater.Download(ctx, cfg, rel, filepath.Dir(exePath))
+	if err != nil {
+		return rel.Version, false, fmt.Errorf("downloading %s: %w", rel.Version, err)
 	}
-	return rel.Version(), true, nil
+	if err := updater.ApplyTo(path, exePath); err != nil {
+		_ = os.Remove(path)
+		return rel.Version, false, fmt.Errorf("installing %s: %w", rel.Version, err)
+	}
+	return rel.Version, true, nil
 }
+
+func trimV(v string) string { return strings.TrimPrefix(v, "v") }
