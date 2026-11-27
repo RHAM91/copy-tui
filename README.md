@@ -88,10 +88,10 @@ go run ./cmd/copiar          # run from source
 
 ## Releases
 
-Releases are automated from `main` with [release-please](https://github.com/googleapis/release-please) and [GoReleaser](https://goreleaser.com):
+Releases are published to the private update catalog by the **Release** workflow:
 
-1. Merge work into `main` using [Conventional Commits](https://www.conventionalcommits.org) (`feat:` bumps the minor version, `fix:` the patch; `feat!:` or `BREAKING CHANGE:` the major after 1.0).
-2. The **Release** workflow keeps a release PR open with the next version and `CHANGELOG.md`.
-3. Merging that PR creates the `vX.Y.Z` tag and GitHub release; GoReleaser then attaches `copiar_<version>_<os>_<arch>.tar.gz` archives and `checksums.txt`.
+1. Bump the version in the `VERSION` file (semver, e.g. `0.6.0`) in the commit you want to release.
+2. Pushing that change to `main` builds every target in one job, signs each binary and publishes them together. The catalog only exposes a version once all targets are uploaded.
+3. The catalog rejects an already published or lower version, so each release needs a new `VERSION`.
 
-Try the build locally without publishing: `goreleaser release --snapshot --clean`.
+Required repository secrets: `CATALOG_URL`, `CATALOG_UPLOAD_TOKEN`, `CATALOG_SIGNING_KEY`.
