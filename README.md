@@ -88,10 +88,12 @@ go run ./cmd/copiar          # run from source
 
 ## Releases
 
-Releases are published to the private update catalog by the **Release** workflow:
+Releases are published to the private update catalog by `.github/workflows/release.yml` when a version tag is pushed:
 
-1. Bump the version in the `VERSION` file (semver, e.g. `0.6.0`) in the commit you want to release.
-2. Pushing that change to `main` builds every target in one job, signs each binary and publishes them together. The catalog only exposes a version once all targets are uploaded.
-3. The catalog rejects an already published or lower version, so each release needs a new `VERSION`.
+```bash
+git tag v0.6.0 && git push origin v0.6.0
+```
+
+The workflow runs `go test -race`, builds the four enabled targets (`linux/amd64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`), signs each binary and publishes them together; the catalog only exposes a version once all targets are uploaded. The tag must look like `vMAJOR.MINOR.PATCH`, and the catalog rejects an already published or lower version. The `TARGETS` list in the workflow must match the targets checked in the catalog panel.
 
 Required repository secrets: `CATALOG_URL`, `CATALOG_UPLOAD_TOKEN`, `CATALOG_SIGNING_KEY`.

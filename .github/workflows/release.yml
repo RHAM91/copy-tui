@@ -1,14 +1,10 @@
 name: Release
 
-# Publishes copiar to the private update catalog. The version comes from the
-# VERSION file: bump it in the commit that should be released. The catalog
-# rejects an already published or lower version, so the workflow only runs
-# when VERSION changes (or by hand).
+# Publishing a tag (git tag v0.5.0 && git push origin v0.5.0) builds every
+# target enabled for copiar-tui in the update catalog and publishes them together.
 on:
   push:
-    branches: [main]
-    paths: [VERSION]
-  workflow_dispatch:
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
@@ -20,36 +16,51 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Must match the targets checked for copiar-tui in the catalog panel:
+      # the catalog publishes only when all of them are uploaded.
+      TARGETS: linux/amd64 darwin/amd64 darwin/arm64 windows/amd64
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
       - name: Test
-        run: go test ./...
-      - name: Build every enabled target
+        run: go test -race ./...
+
+      - name: Build
         run: |
           set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          echo "VERSION=${version}" >> "$GITHUB_ENV"
+          tag="${GITHUB_REF_NAME}"
+          if ! echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag must look like vMAJOR.MINOR.PATCH, got '${tag}'"
+            exit 1
+          fi
+          version="${tag#v}"
           mkdir -p dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+          for target in $TARGETS; do
             goos="${target%/*}"; goarch="${target#*/}"; ext=""
             [ "$goos" = windows ] && ext=".exe"
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
               -ldflags "-s -w -X main.version=${version}" \
-              -o "dist/copiar-${goos}-${goarch}${ext}" ./cmd/copiar
+              -o "dist/copiar_${version}_${goos}_${goarch}${ext}" ./cmd/copiar
           done
+          ls -l dist
+
       - name: Publish to the update catalog
         env:
           CATALOG_URL: ${{ secrets.CATALOG_URL }}
           CATALOG_UPLOAD_TOKEN: ${{ secrets.CATALOG_UPLOAD_TOKEN }}
           CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
         run: |
-          ./scripts/publish-release.sh copiar-tui "$VERSION" \
-            linux/amd64=dist/copiar-linux-amd64 \
-            linux/arm64=dist/copiar-linux-arm64 \
-            darwin/amd64=dist/copiar-darwin-amd64 \
-            darwin/arm64=dist/copiar-darwin-arm64 \
-            windows/amd64=dist/copiar-windows-amd64.exe \
-            windows/arm64=dist/copiar-windows-arm64.exe
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          args=()
+          for target in $TARGETS; do
+            goos="${target%/*}"; goarch="${target#*/}"; ext=""
+            [ "$goos" = windows ] && ext=".exe"
+            args+=("${target}=dist/copiar_${version}_${goos}_${goarch}${ext}")
+          done
+          ./scripts/publish-release.sh copiar-tui "$version" "${args[@]}"
