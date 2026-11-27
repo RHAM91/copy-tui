@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/RHAM91/copy-tui/compare/v0.4.0...v0.5.0) (2026-11-27)
+
+
+### Features
+
+* update from the private catalog with signature verification ([751ed15](https://github.com/RHAM91/copy-tui/commit/751ed151ff94ba3638c3ff2ae7038b60f4479584))
+
 ## [0.4.0](https://github.com/RHAM91/copy-tui/compare/v0.3.0...v0.4.0) (2026-11-19)
 
 
