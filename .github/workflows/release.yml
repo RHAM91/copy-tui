@@ -1,82 +1,55 @@
 name: Release
 
-# On every push to main, release-please keeps a release PR up to date from the
-# Conventional Commits. Merging that PR creates the tag and the GitHub release,
-# and GoReleaser then builds and uploads the binaries to it.
+# Publishes copiar to the private update catalog. The version comes from the
+# VERSION file: bump it in the commit that should be released. The catalog
+# rejects an already published or lower version, so the workflow only runs
+# when VERSION changes (or by hand).
 on:
   push:
     branches: [main]
-  # Rebuild and upload the binaries of an existing release tag by hand.
+    paths: [VERSION]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing release tag to build, e.g. v0.1.0"
-        required: true
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
-# Merges landing back to back must not race to create the same release PR.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release-please:
-    if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
-        with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-
-  binaries:
-    needs: release-please
-    # always() lets the job run on workflow_dispatch, where release-please is skipped.
-    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
-          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test ./...
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test
+        run: go test ./...
+      - name: Build every enabled target
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            goos="${target%/*}"; goarch="${target#*/}"; ext=""
+            [ "$goos" = windows ] && ext=".exe"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${version}" \
+              -o "dist/copiar-${goos}-${goarch}${ext}" ./cmd/copiar
+          done
       - name: Publish to the update catalog
-        # The catalog needs raw binaries (not archives) and publishes a
-        # version only when every enabled target is uploaded and signed.
-        # Keep this target list identical to the targets enabled in the panel.
         env:
           CATALOG_URL: ${{ secrets.CATALOG_URL }}
           CATALOG_UPLOAD_TOKEN: ${{ secrets.CATALOG_UPLOAD_TOKEN }}
           CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
-          TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
         run: |
-          set -euo pipefail
-          version="${TAG#v}"
-          mkdir -p catalog-dist
-          specs=()
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            goos="${target%/*}"; goarch="${target#*/}"; ext=""
-            [ "$goos" = windows ] && ext=".exe"
-            out="catalog-dist/copiar-${goos}-${goarch}${ext}"
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
-              -ldflags "-s -w -X main.version=${version}" -o "$out" ./cmd/copiar
-            specs+=("${target}=${out}")
-          done
-          ./scripts/publish-release.sh copiar-tui "$version" "${specs[@]}"
+          ./scripts/publish-release.sh copiar-tui "$VERSION" \
+            linux/amd64=dist/copiar-linux-amd64 \
+            linux/arm64=dist/copiar-linux-arm64 \
+            darwin/amd64=dist/copiar-darwin-amd64 \
+            darwin/arm64=dist/copiar-darwin-arm64 \
+            windows/amd64=dist/copiar-windows-amd64.exe \
+            windows/arm64=dist/copiar-windows-arm64.exe
