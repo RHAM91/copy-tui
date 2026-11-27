@@ -1,99 +1,102 @@
 # copiar
 
-A dual-pane terminal file manager with Vim keys: browse two folders side by side and press <kbd>space</kbd> to copy from one to the other — in either direction.
+Un gestor de archivos de terminal con doble panel y teclas Vim: navega dos carpetas lado a lado y presiona <kbd>space</kbd> para copiar de una a la otra, en cualquier dirección.
 
-## Quick path
+## Inicio rápido
 
-1. Install — download the archive for your system from the [Releases](https://github.com/RHAM91/copy-tui/releases) page and put `copiar` (`copiar.exe` on Windows) in your `PATH`, or build it with Go 1.24+:
-
-   | System | Archive |
-   |---|---|
-   | Linux (x86-64 / ARM64) | `copiar_<version>_linux_amd64.tar.gz` / `_linux_arm64.tar.gz` |
-   | macOS Intel / Apple Silicon | `copiar_<version>_darwin_amd64.tar.gz` / `_darwin_arm64.tar.gz` |
-   | Windows (x86-64 / ARM64) | `copiar_<version>_windows_amd64.zip` / `_windows_arm64.zip` |
+1. Instalación: usa el instalador del catálogo privado de actualizaciones (te pide el nombre de la app, `copiar-tui`, y tu token de descarga `cat_dl_...`), o compila con Go 1.24+:
 
    ```bash
+   # Linux y macOS
+   curl -fsSL https://updates.r0ma.cloud/install.sh | sh
+
+   # Windows (PowerShell)
+   irm https://updates.r0ma.cloud/install.ps1 | iex
+
+   # desde el código fuente
    go install github.com/RHAM91/copy-tui/cmd/copiar@latest
    ```
 
-   > **macOS:** binaries are not signed, so the first run of a file downloaded with a browser is blocked by Gatekeeper. Allow it once with `xattr -d com.apple.quarantine ./copiar`. Updates through `copiar update` are not affected.
+   El instalador deja `copiar` en `~/.local/bin` (asegúrate de que esté en tu `PATH`) y guarda tu token en el perfil de tu shell como `COPIAR_TUI_UPDATE_TOKEN`.
 
-2. Run it in any folder — both panels open there:
+   > **macOS:** los binarios no están firmados, por lo que la primera ejecución de un archivo descargado con el navegador es bloqueada por Gatekeeper. Permítelo una vez con `xattr -d com.apple.quarantine ./copiar`. Las actualizaciones con `copiar update` no se ven afectadas.
+
+2. Ejecútalo en cualquier carpeta; ambos paneles se abren ahí:
 
    ```bash
-   copiar            # with Nerd Font icons
-   copiar --no-icons # if your terminal font has no Nerd Font glyphs
-   copiar --version  # print the installed version
-   copiar update     # install the latest release
+   copiar            # con iconos Nerd Font
+   copiar --no-icons # si la fuente de tu terminal no tiene glifos Nerd Font
+   copiar --version  # muestra la versión instalada
+   copiar update     # instala la última versión
    ```
 
-3. Move to the destination in one panel, <kbd>tab</kbd> to the other, select a file and press <kbd>space</kbd>.
+3. Ve al destino en un panel, cambia al otro con <kbd>tab</kbd>, selecciona un archivo y presiona <kbd>space</kbd>.
 
-Press <kbd>?</kbd> inside the app for the full keymap.
+Presiona <kbd>?</kbd> dentro de la app para ver todas las teclas.
 
-## Keys
+## Teclas
 
-| Navigation | | Files | |
+| Navegación | | Archivos | |
 |---|---|---|---|
-| `j` / `k` | down / up | `space` | copy to the other panel |
-| `h` / `l` | parent / open folder | `x` | move to the other panel (asks first) |
-| `gg` / `G` | first / last entry | `d` | move to trash (asks first) |
-| `ctrl+d` / `ctrl+u` | half page down / up | `D` | delete permanently (asks first, defaults to Cancel) |
-| `tab` | switch panel | `r` | rename |
-| `/`, `n` / `N` | search, next / previous match | `a` | new folder |
-| `.` | show / hide hidden files | `?` | toggle help |
-| `ctrl+s` | save both panel paths as a bookmark | `q` | quit |
-| `ctrl+b` | open the bookmark table | | |
-| `=` | same folder in both panels | | |
-| `ctrl+t` | choose a theme | | |
+| `j` / `k` | abajo / arriba | `space` | copiar al otro panel |
+| `h` / `l` | carpeta superior / abrir carpeta | `x` | mover al otro panel (pregunta antes) |
+| `gg` / `G` | primera / última entrada | `d` | mover a la papelera (pregunta antes) |
+| `ctrl+d` / `ctrl+u` | media página abajo / arriba | `D` | eliminar permanentemente (pregunta antes, Cancelar por defecto) |
+| `tab` | cambiar de panel | `r` | renombrar |
+| `/`, `n` / `N` | buscar, coincidencia siguiente / anterior | `a` | nueva carpeta |
+| `.` | mostrar / ocultar archivos ocultos | `?` | mostrar / ocultar ayuda |
+| `ctrl+s` | guardar las rutas de ambos paneles como marcador | `q` | salir |
+| `ctrl+b` | abrir la tabla de marcadores | | |
+| `=` | misma carpeta en ambos paneles | | |
+| `ctrl+t` | elegir un tema | | |
 
-**Selection:** `m` marks the entry and moves down, `v` selects a range (press `v` again to keep it), `esc` clears. Copy, move and delete apply to the selection, or to the entry under the cursor when nothing is selected.
+**Selección:** `m` marca la entrada y baja, `v` selecciona un rango (presiona `v` otra vez para conservarlo), `esc` limpia la selección. Copiar, mover y eliminar se aplican a la selección, o a la entrada bajo el cursor cuando no hay nada seleccionado.
 
-## How operations behave
+## Cómo se comportan las operaciones
 
-| Topic | Behavior |
+| Tema | Comportamiento |
 |---|---|
-| Copy semantics | Like `cp -a`: folders are copied recursively, symlinks are copied as links (never followed), permissions and modification times are kept. |
-| Name conflicts | A dialog offers **Overwrite**, **Skip** or **Rename** (`name (1).ext`), with an *Apply to all* toggle. Overwriting a folder merges its contents. |
-| Progress & cancel | Long operations show a progress modal; `esc` cancels. Files are written to a temporary name first, so a cancelled copy never leaves half-written files or destroys the file it was replacing. |
-| Layout | The panels sit side by side; when the terminal is narrower than 100 columns they stack, the left panel on top and the right one below. |
-| Themes | `ctrl+t` lists **Catppuccin Mocha** (default), **Kanagawa Wave**, **Kanagawa Dragon** and **Tokyo Night**. Moving through the list previews each theme; `enter` keeps and saves it, `esc` goes back to the previous one. Themes color text, borders and highlights and keep your terminal's background. The choice is saved as `theme = "kanagawa-wave"` in `config.toml`, next to the bookmarks (`~/.config/copiar/config.toml` on Linux). An unknown theme or an unreadable file falls back to the default with a message, and a corrupt file is never overwritten. |
-| Same folder | Copying into the folder the item already lives in creates a duplicate `name (1).ext`. |
-| Move | Renames within a file system; across file systems it copies and then deletes the source, so a cancelled move keeps the source. |
-| Updates | Set `COPIAR_TUI_UPDATE_TOKEN` to your download token to enable them. When a newer release exists, the status bar shows `vX.Y.Z available — run copiar update` (checked in the background at startup; nothing is shown offline or without a token). `copiar update` downloads the release for your platform from the update catalog, verifies its size, SHA-256 and Ed25519 signature against the public key built into the binary, and replaces the binary; use `sudo copiar update` (or an Administrator terminal on Windows) if it lives in a system folder. Builds from source (`dev`) do not update. |
-| Same folder | `=` asks which way to go: **Left → Right** opens the left folder in the right panel, **Right → Left** the opposite. The active panel's folder is preselected, focus stays where it was, and the panel that changes puts its cursor on the same entry. When both panels already show the same folder, only a message is shown. |
-| Bookmarks | `ctrl+s` asks for a name and saves the left and right panel folders; an existing name asks before replacing it. `ctrl+b` opens the table: `enter` opens both folders, `r` renames and `d` deletes (both ask first). Before opening, both folders are checked: if one is gone you can **Go anyway** (only the existing one opens), **Delete** the broken bookmark or cancel; if both are gone you can delete it or cancel. Bookmarks are stored in `~/.config/copiar/bookmarks.json` on Linux, `~/Library/Application Support/copiar/` on macOS and `%AppData%\copiar\` on Windows. |
-| Trash | `d` uses the system trash so items can be restored: the freedesktop.org trash on Linux (`~/.local/share/Trash`), Finder on macOS (with **Put Back**; falls back to `~/.Trash` when Finder cannot be used, e.g. over SSH), and the Recycle Bin on Windows. |
+| Semántica de copia | Como `cp -a`: las carpetas se copian de forma recursiva, los enlaces simbólicos se copian como enlaces (nunca se siguen) y se conservan los permisos y las fechas de modificación. |
+| Conflictos de nombre | Un diálogo ofrece **Sobrescribir**, **Omitir** o **Renombrar** (`nombre (1).ext`), con la opción *Aplicar a todos*. Sobrescribir una carpeta combina su contenido. |
+| Progreso y cancelación | Las operaciones largas muestran un modal de progreso; `esc` las cancela. Los archivos se escriben primero con un nombre temporal, así que una copia cancelada nunca deja archivos a medias ni destruye el archivo que iba a reemplazar. |
+| Diseño | Los paneles van lado a lado; cuando la terminal tiene menos de 100 columnas se apilan: el panel izquierdo arriba y el derecho abajo. |
+| Temas | `ctrl+t` lista **Catppuccin Mocha** (por defecto), **Kanagawa Wave**, **Kanagawa Dragon** y **Tokyo Night**. Al moverte por la lista se previsualiza cada tema; `enter` lo conserva y lo guarda, `esc` vuelve al anterior. Los temas colorean texto, bordes y resaltados y respetan el fondo de tu terminal. La elección se guarda como `theme = "kanagawa-wave"` en `config.toml`, junto a los marcadores (`~/.config/copiar/config.toml` en Linux). Un tema desconocido o un archivo ilegible vuelve al tema por defecto con un mensaje, y un archivo corrupto nunca se sobrescribe. |
+| Misma carpeta | Copiar a la carpeta donde ya vive el elemento crea un duplicado `nombre (1).ext`. |
+| Mover | Renombra dentro de un mismo sistema de archivos; entre sistemas de archivos copia y luego elimina el origen, así que un movimiento cancelado conserva el origen. |
+| Actualizaciones | Define `COPIAR_TUI_UPDATE_TOKEN` con tu token de descarga para habilitarlas. Cuando existe una versión más reciente, la barra de estado muestra `vX.Y.Z available — run copiar update` (se comprueba en segundo plano al iniciar; no se muestra nada sin conexión ni sin token). `copiar update` descarga la versión para tu plataforma desde el catálogo de actualizaciones, verifica su tamaño, SHA-256 y firma Ed25519 con la clave pública incluida en el binario, y reemplaza el binario; usa `sudo copiar update` (o una terminal de Administrador en Windows) si está en una carpeta del sistema. Las compilaciones desde el código fuente (`dev`) no se actualizan. |
+| Misma carpeta en ambos paneles | `=` pregunta en qué dirección ir: **Izquierda → Derecha** abre la carpeta izquierda en el panel derecho, **Derecha → Izquierda** lo contrario. La carpeta del panel activo viene preseleccionada, el foco se queda donde estaba y el panel que cambia coloca su cursor en la misma entrada. Cuando ambos paneles ya muestran la misma carpeta, solo se muestra un mensaje. |
+| Marcadores | `ctrl+s` pide un nombre y guarda las carpetas de los paneles izquierdo y derecho; si el nombre ya existe, pregunta antes de reemplazarlo. `ctrl+b` abre la tabla: `enter` abre ambas carpetas, `r` renombra y `d` elimina (ambas preguntan antes). Antes de abrir se comprueban ambas carpetas: si una ya no existe puedes **Ir de todos modos** (solo se abre la que existe), **Eliminar** el marcador roto o cancelar; si ninguna existe, puedes eliminarlo o cancelar. Los marcadores se guardan en `~/.config/copiar/bookmarks.json` en Linux, `~/Library/Application Support/copiar/` en macOS y `%AppData%\copiar\` en Windows. |
+| Papelera | `d` usa la papelera del sistema para poder restaurar los elementos: la papelera de freedesktop.org en Linux (`~/.local/share/Trash`), Finder en macOS (con **Put Back**; recurre a `~/.Trash` cuando no se puede usar Finder, por ejemplo por SSH) y la Papelera de reciclaje en Windows. |
 
-> **WSL note:** the trash is the Linux one. Items trashed from `/mnt/c/...` do not appear in the Windows Recycle Bin.
+> **Nota sobre WSL:** la papelera es la de Linux. Los elementos enviados a la papelera desde `/mnt/c/...` no aparecen en la Papelera de reciclaje de Windows.
 
-> **tmux note:** `ctrl+b` is tmux's default prefix, so tmux keeps it. Press it twice (`ctrl+b ctrl+b`) to send it to copiar, or change the prefix (for example `set -g prefix C-a`).
+> **Nota sobre tmux:** `ctrl+b` es el prefijo por defecto de tmux, así que tmux se lo queda. Presiónalo dos veces (`ctrl+b ctrl+b`) para enviarlo a copiar, o cambia el prefijo (por ejemplo `set -g prefix C-a`).
 
-## Development
+## Desarrollo
 
 ```bash
-go test -race ./...          # unit and UI tests
-go run ./cmd/copiar          # run from source
+go test -race ./...          # pruebas unitarias y de interfaz
+go run ./cmd/copiar          # ejecutar desde el código fuente
 ```
 
-| Path | Responsibility |
+| Ruta | Responsabilidad |
 |---|---|
-| `cmd/copiar` | flags and program start |
-| `internal/fsops` | file operations (list, copy, move, trash, delete, rename), no UI; OS-specific code in `*_linux.go`, `*_darwin.go`, `*_windows.go`, `*_unix.go` |
-| `internal/bookmarks` | named left/right folder pairs saved as JSON in the user config directory |
-| `internal/config` | preferences (the theme) in `config.toml` in the user config directory |
-| `internal/updater` | update catalog client: version check, download, SHA-256 and Ed25519 verification |
-| `internal/update` | self-update service on top of the catalog client |
-| `internal/ui` | Bubble Tea model: panels, dialogs, keymap, theme (Catppuccin Mocha) |
+| `cmd/copiar` | flags e inicio del programa |
+| `internal/fsops` | operaciones de archivos (listar, copiar, mover, papelera, eliminar, renombrar), sin interfaz; el código específico de cada SO está en `*_linux.go`, `*_darwin.go`, `*_windows.go`, `*_unix.go` |
+| `internal/bookmarks` | pares de carpetas izquierda/derecha con nombre, guardados como JSON en el directorio de configuración del usuario |
+| `internal/config` | preferencias (el tema) en `config.toml`, en el directorio de configuración del usuario |
+| `internal/updater` | cliente del catálogo de actualizaciones: comprobación de versión, descarga y verificación SHA-256 y Ed25519 |
+| `internal/update` | servicio de autoactualización sobre el cliente del catálogo |
+| `internal/ui` | modelo de Bubble Tea: paneles, diálogos, teclas, tema (Catppuccin Mocha) |
 
-## Releases
+## Publicación de versiones
 
-Releases are published to the private update catalog by `.github/workflows/release.yml` when a version tag is pushed:
+Las versiones se publican en el catálogo privado de actualizaciones con `.github/workflows/release.yml` cuando se sube un tag de versión:
 
 ```bash
 git tag v0.6.0 && git push origin v0.6.0
 ```
 
-The workflow runs `go test -race`, builds the four enabled targets (`linux/amd64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`), signs each binary and publishes them together; the catalog only exposes a version once all targets are uploaded. The tag must look like `vMAJOR.MINOR.PATCH`, and the catalog rejects an already published or lower version. The `TARGETS` list in the workflow must match the targets checked in the catalog panel.
+El workflow ejecuta `go test -race`, compila los cuatro targets habilitados (`linux/amd64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`), firma cada binario y los publica juntos; el catálogo solo expone una versión cuando todos los targets están subidos. El tag debe tener la forma `vMAJOR.MINOR.PATCH`, y el catálogo rechaza una versión ya publicada o menor. La lista `TARGETS` del workflow debe coincidir con los targets marcados en el panel del catálogo.
 
-Required repository secrets: `CATALOG_URL`, `CATALOG_UPLOAD_TOKEN`, `CATALOG_SIGNING_KEY`.
+Secrets requeridos del repositorio: `CATALOG_URL`, `CATALOG_UPLOAD_TOKEN`, `CATALOG_SIGNING_KEY`.
